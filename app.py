@@ -149,7 +149,7 @@ try:
             delta_color="off"
         )
         
-        st.subheader(f"Détail des services pour {employe_selectionne}")
+       st.subheader(f"Détail des services pour {employe_selectionne}")
         
         # Affichage du tableau de planning
         st.dataframe(
@@ -163,6 +163,6 @@ try:
             },
             hide_index=True
         )
-        
+
 except Exception as e:
     st.error(f"Une erreur inattendue est survenue au lancement : {e}")
