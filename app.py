@@ -139,3 +139,28 @@ try:
         )
         
         # --- AFFICHAGE PRINCIPAL ---
+        
+        st.metric(
+            label="Total des heures cumulées", 
+            value=total_heures_format,
+            delta=f"sur {len(df_resultat[df_resultat['Durée du service'] > pd.Timedelta(0)])} services trouvés",
+            delta_color="off"
+        )
+        
+        st.subheader(f"Détail des services pour {employe_selectionne}")
+        
+        # Affichage du tableau de planning
+        st.dataframe(
+            df_resultat[['SEMAINE ET JOUR', COL_DEBUT, COL_FIN, 'Durée du service (Affichage)']],
+            use_container_width=True,
+            column_config={
+                "SEMAINE ET JOUR": st.column_config.Column("Semaine et Jour", width="large"),
+                COL_DEBUT: st.column_config.Column("Début"),
+                COL_FIN: st.column_config.Column("Fin"),
+                "Durée du service (Affichage)": "Durée du service" 
+            },
+            hide_index=True
+        )
+        
+except Exception as e:
+    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
