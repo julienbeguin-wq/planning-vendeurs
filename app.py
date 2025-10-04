@@ -5,7 +5,7 @@ import csv # Nécessaire pour le paramètre quoting=3
 
 # --- CONFIGURATION DU FICHIER CORRIGÉE ---
 # 🔑 CORRECTION N°1 : Nom exact du fichier
-NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
+NOM_DU_FICHIER = "planning.xlsx"
 
 # 🔑 CORRECTION N°2 : Séparateur. On utilise la virgule dans le read_csv.
 # On garde cette variable pour référence, mais le paramètre de lecture est corrigé.
