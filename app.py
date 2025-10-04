@@ -1,10 +1,11 @@
 import pandas as pd
 import streamlit as st
 import datetime
-import csv # On garde csv juste au cas où, mais n'est plus utilisé pour la lecture
+import csv 
+# N'oubliez pas : vous devez avoir renommé votre fichier de données en "planning.xlsx"
 
 # --- CONFIGURATION DU FICHIER ---
-# Nom exact du fichier Excel
+# Nom exact du fichier Excel (doit être au format .xlsx)
 NOM_DU_FICHIER = "planning.xlsx"
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -25,8 +26,24 @@ def calculer_heures_travaillees(df_planning):
 
     try:
         # Assurez-vous que les colonnes d'heures sont traitées comme des chaînes avant conversion
-        df_planning[COL_DEBUT] = df_planning[COL_DEBUT].astype(str).str.strip()
-        df_planning[COL_FIN] = df_planning[COL_FIN].astype(str).str.strip()
+        # et gérez le cas où Pandas pourrait retourner des floats/datetime.time
+        
+        # Conversion des données en chaînes de caractères pour garantir le format 'HH:MM:SS'
+        def to_time_str(val):
+            if isinstance(val, (datetime.time, pd.Timestamp)):
+                return str(val)
+            # Gère les floats (jours) si Excel les a renvoyés
+            elif isinstance(val, (int, float)) and 0 <= val <= 1: 
+                # Convertit la fraction de jour en HH:MM:SS
+                total_seconds = val * 86400 
+                h = int(total_seconds // 3600)
+                m = int((total_seconds % 3600) // 60)
+                s = int(total_seconds % 60)
+                return f"{h:02d}:{m:02d}:{s:02d}"
+            return str(val)
+
+        df_planning[COL_DEBUT] = df_planning[COL_DEBUT].apply(to_time_str).str.strip()
+        df_planning[COL_FIN] = df_planning[COL_FIN].apply(to_time_str).str.strip()
         
         df_planning['Duree_Debut'] = pd.to_timedelta(df_planning[COL_DEBUT])
         df_planning['Duree_Fin'] = pd.to_timedelta(df_planning[COL_FIN])
@@ -48,16 +65,17 @@ def calculer_heures_travaillees(df_planning):
         return df_planning, f"{heures}h {minutes}min"
         
     except Exception:
+        # En cas d'échec, renvoyer l'erreur de calcul pour ne pas bloquer l'app si les données sont mal formatées
         return df_planning, "Erreur de calcul"
 
 
-# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRECTION LECTURE EXCEL) ---
+# --- FONCTION DE CHARGEMENT DES DONNÉES (VERSION EXCEL) ---
 
 @st.cache_data
 def charger_donnees(fichier):
     """Charge le fichier Excel une seule fois et nettoie les données."""
     try:
-        # 🔑 CORRECTION CRITIQUE : Utilisation de pd.read_excel pour contourner les problèmes CSV
+        # Lecture du fichier Excel
         df = pd.read_excel(fichier)
         
         # Nettoyage des noms de colonnes et des données
@@ -85,6 +103,7 @@ def charger_donnees(fichier):
         st.stop()
         
     except Exception as e:
+        # Le message d'erreur sera maintenant plus clair si 'openpyxl' est installé
         st.error(f"Impossible de charger le fichier Excel. Détails: {e}. Vérifiez que le fichier '{fichier}' est bien au format .xlsx.")
         st.stop()
 
