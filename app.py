@@ -115,11 +115,12 @@ def charger_donnees(fichier):
             try:
                 df = pd.read_csv(fichier, encoding='latin1') 
             except Exception as e_final:
+                # Retrait de l'indentation autour des guillemets finaux pour prévenir la SyntaxError
                 st.error(f"""
-                **ERREUR CRITIQUE : Impossible de lire le fichier de données.**
-                Vérifiez que le fichier `{fichier}` est dans le bon format (.xlsx ou .csv) et que son nom correspond exactement à la variable `NOM_DU_FICHIER` dans `app.py`.
-                Détails de l'erreur: {e_final}
-                """)
+**ERREUR CRITIQUE : Impossible de lire le fichier de données.**
+Vérifiez que le fichier `{fichier}` est dans le bon format (.xlsx ou .csv) et que son nom correspond exactement à la variable `NOM_DU_FICHIER` dans `app.py`.
+Détails de l'erreur: {e_final}
+""")
                 st.stop()
     
     # --- NETTOYAGE DES DONNÉES (commun aux deux méthodes) ---
@@ -158,10 +159,78 @@ try:
     
     # DIAGNOSTIC CRITIQUE : Si la liste des employés est vide, afficher l'erreur.
     if not liste_employes or (len(liste_employes) == 1 and str(liste_employes[0]).upper() in ['', 'NAN', 'NONE', 'N/A']):
+        # Retrait de l'indentation autour des guillemets finaux pour prévenir la SyntaxError
         st.error(f"""
-        **ERREUR DE DONNÉES : Impossible de trouver les employés.**
-        Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employés (`'{COL_EMPLOYE}'`) est vide ou n'a pas été trouvée correctement.
+**ERREUR DE DONNÉES : Impossible de trouver les employés.**
+Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employés (`'{COL_EMPLOYE}'`) est vide ou n'a pas été trouvée correctement.
+
+**Action :**
+1. Confirmez que la colonne dans votre fichier Excel/CSV s'appelle **exactement** `{COL_EMPLOYE}`.
+2. Si votre fichier est un CSV, essayez de le renommer en `.csv` et de changer `NOM_DU_FICHIER` en `"planningss.csv"`.
+""")
+        st.stop() # Arrête l'exécution pour afficher l'erreur
+
+    liste_semaines_brutes = sorted(df_initial[COL_SEMAINE].unique().tolist())
+    liste_semaines_formatees = [get_dates_for_week(s) for s in liste_semaines_brutes]
+    
+    semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
+    
+    # 3. Créer les menus déroulants dans le côté (Sidebar)
+    st.sidebar.header("Sélections")
+    
+    employe_selectionne = st.sidebar.selectbox(
+        'Sélectionnez l\'employé',
+        liste_employes
+    )
+
+    semaine_selectionnee_formattee = st.sidebar.selectbox(
+        'Sélectionnez la semaine',
+        liste_semaines_formatees
+    )
+    
+    semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
+
+    # 4. Afficher les résultats pour l'employé et la semaine sélectionnés
+    if employe_selectionne and semaine_selectionnee_brute:
         
-        **Action :**
-        1. Confirmez que la colonne dans votre fichier Excel/CSV s'appelle **exactement** `{COL_EMPLOYE}`.
-        2. Si votre fichier est un CSV, essayez de le renommer en `.csv` et de changer `NOM_DU_FICHIER` en `"pl
+        # Filtrer par employé et par semaine
+        df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
+        df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee_brute].copy()
+        
+        # Trier par Jour logique
+        df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
+        df_filtre = df_filtre.sort_values(by=[COL_JOUR])
+        
+        # Calculer les heures
+        df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
+        
+        # Convertir la durée en chaîne formatée (HH:mm)
+        def format_duration(x):
+            if pd.isna(x) or x.total_seconds() <= 0:
+                return ""
+            h = int(x.total_seconds() // 3600)
+            m = int((x.total_seconds() % 3600) // 60)
+            return f"{h:02d}:{m:02d}"
+            
+        df_resultat['Durée du service (Affichage)'] = df_resultat['Durée du service'].apply(format_duration)
+        
+        # --- AFFICHAGE PRINCIPAL ---
+        
+        st.subheader(f"Planning pour {employe_selectionne} - {semaine_selectionnee_formattee}")
+        
+        # Affichage du tableau de planning
+        st.dataframe(
+            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service (Affichage)']],
+            use_container_width=True,
+            column_config={
+                COL_JOUR: st.column_config.Column("Jour", width="large"),
+                COL_DEBUT: st.column_config.Column("Début"),
+                COL_FIN: st.column_config.Column("Fin"),
+                "Durée du service (Affichage)": "Durée du service" 
+            },
+            hide_index=True
+        )
+        
+except Exception as e:
+    # Affiche les erreurs qui ne sont pas liées à l'indentation ou au chargement du fichier
+    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
