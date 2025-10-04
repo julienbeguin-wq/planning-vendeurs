@@ -1,8 +1,6 @@
 import pandas as pd
 import streamlit as st
 import datetime
-import csv 
-# N'oubliez pas : vous devez avoir renommé votre fichier de données en "planning.xlsx"
 
 # --- CONFIGURATION DU FICHIER ---
 # Nom exact du fichier Excel (doit être au format .xlsx)
@@ -25,16 +23,12 @@ def calculer_heures_travaillees(df_planning):
     df_planning = df_planning.fillna({COL_DEBUT: '00:00:00', COL_FIN: '00:00:00'})
 
     try:
-        # Assurez-vous que les colonnes d'heures sont traitées comme des chaînes avant conversion
-        # et gérez le cas où Pandas pourrait retourner des floats/datetime.time
-        
-        # Conversion des données en chaînes de caractères pour garantir le format 'HH:MM:SS'
+        # Fonction robuste pour convertir les valeurs d'heure (chaîne, datetime.time, ou float Excel) en chaîne 'HH:MM:SS'
         def to_time_str(val):
             if isinstance(val, (datetime.time, pd.Timestamp)):
                 return str(val)
-            # Gère les floats (jours) si Excel les a renvoyés
+            # Gère les floats (fraction de jour) si Excel les a renvoyés
             elif isinstance(val, (int, float)) and 0 <= val <= 1: 
-                # Convertit la fraction de jour en HH:MM:SS
                 total_seconds = val * 86400 
                 h = int(total_seconds // 3600)
                 m = int((total_seconds % 3600) // 60)
@@ -65,7 +59,6 @@ def calculer_heures_travaillees(df_planning):
         return df_planning, f"{heures}h {minutes}min"
         
     except Exception:
-        # En cas d'échec, renvoyer l'erreur de calcul pour ne pas bloquer l'app si les données sont mal formatées
         return df_planning, "Erreur de calcul"
 
 
@@ -75,7 +68,7 @@ def calculer_heures_travaillees(df_planning):
 def charger_donnees(fichier):
     """Charge le fichier Excel une seule fois et nettoie les données."""
     try:
-        # Lecture du fichier Excel
+        # Lecture du fichier Excel (nécessite openpyxl)
         df = pd.read_excel(fichier)
         
         # Nettoyage des noms de colonnes et des données
@@ -87,83 +80,4 @@ def charger_donnees(fichier):
         # Supprimer les lignes vides
         df = df.dropna(how='all')
         
-        # S'assurer que les jours et semaines sont en majuscules pour le tri
-        df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
-            
-        # Créer une colonne pour l'affichage
-        df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
-        
-        return df
-    
-    except FileNotFoundError:
-        st.error(f"""
-        **ERREUR CRITIQUE : Fichier non trouvé.**
-        Le fichier de données nommé `{fichier}` doit être dans le même répertoire que `app.py` sur GitHub.
-        """)
-        st.stop()
-        
-    except Exception as e:
-        # Le message d'erreur sera maintenant plus clair si 'openpyxl' est installé
-        st.error(f"Impossible de charger le fichier Excel. Détails: {e}. Vérifiez que le fichier '{fichier}' est bien au format .xlsx.")
-        st.stop()
-
-
-# --- INTERFACE STREAMLIT PRINCIPALE ---
-
-st.set_page_config(page_title="Planning Employé", layout="wide")
-st.title("🕒 Application de Consultation de Planning")
-st.markdown("---")
-
-
-try:
-    # 1. Charger les données 
-    df_initial = charger_donnees(NOM_DU_FICHIER)
-    
-    # 2. Préparer la liste des employés uniques
-    liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
-    
-    # 3. Créer le menu déroulant sur le côté (Sidebar)
-    st.sidebar.header("Sélectionnez votre profil")
-    employe_selectionne = st.sidebar.selectbox(
-        'Qui êtes-vous ?',
-        liste_employes
-    )
-
-    # 4. Afficher les résultats pour l'employé sélectionné
-    if employe_selectionne:
-        
-        df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
-        
-        # Trier par Semaine, puis par ordre logique des Jours
-        df_employe[COL_JOUR] = pd.Categorical(df_employe[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
-        df_employe = df_employe.sort_values(by=[COL_SEMAINE, COL_JOUR])
-        
-        # Calculer les heures
-        df_resultat, total_heures_format = calculer_heures_travaillees(df_employe)
-        
-        # --- AFFICHAGE PRINCIPAL ---
-        
-        st.metric(
-            label="Total des heures cumulées", 
-            value=total_heures_format,
-            delta=f"sur {len(df_resultat[df_resultat['Durée du service'] > pd.Timedelta(0)])} services trouvés",
-            delta_color="off"
-        )
-        
-        st.subheader(f"Détail des services pour {employe_selectionne}")
-        
-        # Affichage du tableau de planning
-        st.dataframe(
-            df_resultat[['SEMAINE ET JOUR', COL_DEBUT, COL_FIN, 'Durée du service']],
-            use_container_width=True,
-            column_config={
-                "SEMAINE ET JOUR": st.column_config.Column("Semaine et Jour", width="large"),
-                COL_DEBUT: st.column_config.Column("Début"),
-                COL_FIN: st.column_config.Column("Fin"),
-                "Durée du service": st.column_config.DurationColumn("Durée", format="HH:mm")
-            },
-            hide_index=True
-        )
-        
-except Exception as e:
-    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
+        # S'assurer que les
