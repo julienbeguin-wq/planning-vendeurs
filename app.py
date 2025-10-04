@@ -20,14 +20,12 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 def calculer_heures_travaillees(df_planning):
     """Calcule le total des heures travaillées et la durée par service."""
     
-    # Remplissage des valeurs manquantes dans les colonnes d'heure pour le CALCUL
-    # (Utilise "00:00:00" pour que le calcul de la durée soit 0)
     df_planning_calc = df_planning.copy()
 
     try:
         # Fonction robuste pour convertir les valeurs d'heure en chaîne pour le calcul
         def to_time_str(val):
-            # Si la valeur est manquante ou vide (nan ou ""), elle sera traitée comme 00:00:00 dans le calcul
+            # Si la valeur est manquante ou vide (nan ou ""), elle sera traitée comme 00:00:00
             if pd.isna(val) or val == "":
                 return "00:00:00"
             if isinstance(val, (datetime.time, pd.Timestamp)):
@@ -55,23 +53,19 @@ def calculer_heures_travaillees(df_planning):
 
         df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree, axis=1)
         
-        # Correction pour garantir que la colonne est bien en Timedelta
         df_planning_calc['Durée du service'] = pd.to_timedelta(df_planning_calc['Durée du service'], errors='coerce')
         
-        # Filtrer et sommer les durées valides
         total_duree = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service'].sum()
         
         secondes_totales = total_duree.total_seconds()
         heures = int(secondes_totales // 3600)
         minutes = int((secondes_totales % 3600) // 60)
         
-        # Ajout de la colonne de durée calculée au DataFrame initial
         df_planning['Durée du service'] = df_planning_calc['Durée du service']
 
         return df_planning, f"{heures}h {minutes}min"
         
     except Exception as e:
-        # En cas d'échec du calcul, retourner une erreur
         df_planning['Durée du service'] = pd.NaT
         return df_planning, f"Erreur de calcul: {e}"
 
@@ -82,4 +76,20 @@ def calculer_heures_travaillees(df_planning):
 def charger_donnees(fichier):
     """Charge le fichier Excel une seule fois et nettoie les données."""
     try:
-        # Lecture du fichier Excel (nécessite
+        # Lecture du fichier Excel (nécessite openpyxl)
+        df = pd.read_excel(fichier)
+        
+        # Nettoyage des noms de colonnes et des données
+        df.columns = df.columns.str.strip()
+        
+        # FIX: Remplacement immédiat des NaN/NaT par des chaînes vides ("") pour l'affichage
+        df[COL_DEBUT] = df[COL_DEBUT].fillna("")
+        df[COL_FIN] = df[COL_FIN].fillna("")
+
+        for col in df.columns:
+            # Conversion de toutes les colonnes objet en string et nettoyage des espaces
+            if df[col].dtype == 'object' or df[col].dtype.name == 'category':
+                df[col] = df[col].astype(str).str.strip()
+                
+        # Supprimer les lignes vides
+        df = df.dropna(how='all')
