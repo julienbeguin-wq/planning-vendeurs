@@ -4,7 +4,7 @@ import datetime
 
 # --- CONFIGURATION DU FICHIER ---
 # Nom exact du fichier Excel (doit être au format .xlsx)
-NOM_DU_FICHIER = "planning.xlsx"
+NOM_DU_FICHIER = "planningss.xlsx"
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
