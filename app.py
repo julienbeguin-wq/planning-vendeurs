@@ -206,8 +206,7 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
         df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee_brute].copy()
         
-        # >>> GESTION DE L'EXCEPTION NOËL (JEUDI S52 CORRIGÉE) <<<
-        # L'utilisateur a demandé d'exclure le Jeudi de la S52
+        # GESTION DE L'EXCEPTION NOËL (JEUDI S52)
         if semaine_selectionnee_brute == 'S52':
             # Sauvegarder la taille avant de filtrer
             df_filtre_avant = len(df_filtre)
@@ -226,6 +225,7 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
         
         # Convertir la durée en chaîne formatée (HH:mm)
+        # Nécessaire pour le calcul mais pas pour l'affichage de la colonne maintenant
         def format_duration(x):
             if pd.isna(x) or x.total_seconds() <= 0:
                 return ""
@@ -241,14 +241,14 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
         st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
         
         # Affichage du tableau de planning
+        # Seules les colonnes JOUR, DEBUT et FIN sont affichées
         st.dataframe(
-            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service (Affichage)']],
+            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]],
             use_container_width=True,
             column_config={
                 COL_JOUR: st.column_config.Column("Jour", width="large"),
                 COL_DEBUT: st.column_config.Column("Début"),
                 COL_FIN: st.column_config.Column("Fin"),
-                "Durée du service (Affichage)": "Durée du service (Pause déduite)" 
             },
             hide_index=True
         )
