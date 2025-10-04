@@ -5,7 +5,7 @@ import datetime
 # --- CONFIGURATION DU FICHIER CORRIGÉE ---
 # Le nom exact de votre fichier est : 'planning.xlsx'
 NOM_DU_FICHIER = "planning.xlsx"
-SEPARATEUR_CSV = ',' 
+SEPARATEUR_CSV = ';' 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
@@ -60,6 +60,11 @@ def calculer_heures_travaillees(df_planning):
 
 @st.cache_data
 def charger_donnees(fichier, separateur):
+    """Charge le fichier CSV une seule fois et nettoie les données."""
+    try:
+        # Pensez à vérifier que la constante SEPARATEUR_CSV est passée ici
+        df = pd.read_csv(fichier, sep=separateur, encoding='latin-1', skipinitialspace=True)
+        # ... le reste du code
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
         # 🔑 CORRECTION PRINCIPALE : Ajout de l'encodage 'latin-1' pour gérer les caractères spéciaux
