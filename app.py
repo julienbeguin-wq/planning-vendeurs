@@ -2,14 +2,11 @@ import pandas as pd
 import streamlit as st
 import datetime
 import csv 
-import re # Nécessaire pour l'expression régulière du séparateur
+# import re # n'est plus nécessaire
 
 # --- CONFIGURATION DU FICHIER ---
 # Nom exact du fichier
 NOM_DU_FICHIER = "planning.xlsx"
-
-# Séparateur REGEX : Il gère la virgule entourée d'espaces (le seul moyen fiable)
-SEPARATEUR_REGEX = r'\s*,\s*' 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
@@ -57,14 +54,19 @@ def calculer_heures_travaillees(df_planning):
 def charger_donnees(fichier):
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
-        # 🔑 CORRECTION FINALE : Utilisation de la REGEX comme seul séparateur pour gérer les espaces
+        # 🔑 CORRECTION FINALE : sep=',' + skipinitialspace=True + quoting=csv.QUOTE_NONE
         df = pd.read_csv(
             fichier, 
-            sep=SEPARATEUR_REGEX, # Utilise la Regex r'\s*,\s*'
+            sep=',', 
             encoding='latin-1', 
-            engine='python' # Obligatoire pour la Regex
-            # Suppression des autres arguments qui causent des conflits (skipinitialspace, quoting)
+            engine='python', # Nécessaire pour les options avancées
+            skipinitialspace=True, 
+            quoting=csv.QUOTE_NONE 
         )
+        
+        # Nettoyage des colonnes (retrait de la colonne 'TOTAL JOUR' qui n'est pas utilisée)
+        colonnes_a_garder = [COL_EMPLOYE, COL_SEMAINE, COL_JOUR, COL_DEBUT, COL_FIN]
+        df = df[df.columns.intersection(colonnes_a_garder)]
         
         # Nettoyage des noms de colonnes et des données
         df.columns = df.columns.str.strip()
