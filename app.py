@@ -2,9 +2,11 @@ import pandas as pd
 import streamlit as st
 import datetime
 
-# --- CONFIGURATION DU FICHIER CORRIGÉE ---
-# Le nom exact de votre fichier est : 'planning.xlsx'
-NOM_DU_FICHIER = "planning.xlsx"
+# --- CONFIGURATION DU FICHIER ---
+# Nom exact de votre fichier CSV
+NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
+
+# 🔑 CORRECTION SÉPARATEUR : Le point-virgule est souvent nécessaire pour les CSV français
 SEPARATEUR_CSV = ';' 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -21,7 +23,7 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 def calculer_heures_travaillees(df_planning):
     """Calcule le total des heures travaillées et la durée par service."""
     
-    # Remplacer les heures vides/manquantes par un temps nul (pour éviter les erreurs de calcul)
+    # Remplacer les heures vides/manquantes par un temps nul
     df_planning = df_planning.fillna({COL_DEBUT: '00:00:00', COL_FIN: '00:00:00'})
 
     try:
@@ -41,7 +43,7 @@ def calculer_heures_travaillees(df_planning):
 
         df_planning['Durée du service'] = df_planning.apply(calculer_duree, axis=1)
         
-        # Calculer le total général (en ignorant les services de 0h)
+        # Calculer le total général
         total_duree = df_planning[df_planning['Durée du service'] > pd.Timedelta(0)]['Durée du service'].sum()
         
         # Formater le résultat en heures et minutes (HHh MMmin)
@@ -52,35 +54,29 @@ def calculer_heures_travaillees(df_planning):
         return df_planning, f"{heures}h {minutes}min"
         
     except Exception as e:
-        # En cas d'erreur de formatage (si les heures ne sont pas HH:MM:SS)
-        # st.warning(f"Avertissement: Erreur de calcul des heures. Vérifiez le format. Détails: {e}")
         return df_planning, "Erreur de calcul"
 
-# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRIGÉE) ---
+
+# --- FONCTION DE CHARGEMENT DES DONNÉES ---
 
 @st.cache_data
 def charger_donnees(fichier, separateur):
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
-        # Pensez à vérifier que la constante SEPARATEUR_CSV est passée ici
-        df = pd.read_csv(fichier, sep=separateur, encoding='latin-1', skipinitialspace=True)
-        # ... le reste du code
-    """Charge le fichier CSV une seule fois et nettoie les données."""
-    try:
-        # 🔑 CORRECTION PRINCIPALE : Ajout de l'encodage 'latin-1' pour gérer les caractères spéciaux
+        # 🔑 CORRECTION ENCODAGE + SÉPARATEUR
         df = pd.read_csv(fichier, sep=separateur, encoding='latin-1', skipinitialspace=True)
         
-        # Nettoyage des noms de colonnes et des données (gestion des espaces)
+        # Nettoyage des noms de colonnes et des données
         df.columns = df.columns.str.strip()
         for col in df.columns:
             if df[col].dtype == 'object':
                 df[col] = df[col].astype(str).str.strip()
                 
-        # Supprimer les lignes qui n'ont aucune donnée
+        # Supprimer les lignes vides
         df = df.dropna(how='all')
             
-        # Créer une colonne pour l'affichage : "S41 - LUNDI"
-        df['SEMAINE ET JOUR'] = df[COL_SEMAINE] + ' - ' + df[COL_JOUR]
+        # Créer une colonne pour l'affichage
+        df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
         
         return df
     
@@ -94,14 +90,20 @@ def charger_donnees(fichier, separateur):
     except UnicodeDecodeError as e:
         st.error(f"""
         **ERREUR D'ENCODAGE : Caractères illisibles.**
-        L'application ne peut pas lire le fichier avec l'encodage 'latin-1'.
-        Si l'erreur persiste, changez 'latin-1' par 'windows-1252' dans la fonction `charger_donnees`.
-        Détails : {e}
+        L'application n'a pas pu lire le fichier (encodage 'latin-1').
+        """)
+        st.stop()
+
+    except pd.errors.ParserError as e:
+        st.error(f"""
+        **ERREUR DE LECTURE DU FICHIER : Séparateur ou structure incorrecte.**
+        Veuillez vérifier que le séparateur défini (actuellement ';') est le bon.
+        Détails: {e}
         """)
         st.stop()
         
     except Exception as e:
-        st.error(f"Impossible de charger le fichier CSV. Vérifiez les constantes de colonnes. Détails: {e}")
+        st.error(f"Impossible de charger le fichier CSV. Vérifiez les constantes de colonnes. Erreur générale: {e}")
         st.stop()
 
 
@@ -113,8 +115,7 @@ st.markdown("---")
 
 
 try:
-    # 1. Charger les données (Point de départ)
-    # L'encodage est maintenant géré à l'intérieur de cette fonction.
+    # 1. Charger les données
     df_initial = charger_donnees(NOM_DU_FICHIER, SEPARATEUR_CSV)
     
     # 2. Préparer la liste des employés uniques
@@ -165,4 +166,6 @@ try:
         
 except Exception as e:
     # Cette erreur ne devrait s'afficher que s'il y a un problème Streamlit ou Pandas très général
-    st.error(f"Une erreur inattendue est survenue : {e}")
+    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
+
+# --- FIN DU CODE ---
