@@ -206,8 +206,9 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
         df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee_brute].copy()
         
-        # GESTION DE L'EXCEPTION NOËL (JEUDI S42)
-        if semaine_selectionnee_brute == 'S42':
+        # >>> GESTION DE L'EXCEPTION NOËL (JEUDI S52 CORRIGÉE) <<<
+        # L'utilisateur a demandé d'exclure le Jeudi de la S52
+        if semaine_selectionnee_brute == 'S52':
             # Sauvegarder la taille avant de filtrer
             df_filtre_avant = len(df_filtre)
             
@@ -215,7 +216,7 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
             df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
             
             if len(df_filtre) < df_filtre_avant:
-                st.info(f"Note: Le **Jeudi** de la semaine S42 a été retiré du planning de **{employe_selectionne}** et du calcul des heures (Jour de Noël).")
+                st.info(f"Note: Le **Jeudi** de la semaine S52 a été retiré du planning de **{employe_selectionne}** et du calcul des heures (Jour de Noël).")
 
         # Trier par Jour logique
         df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
