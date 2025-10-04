@@ -143,13 +143,11 @@ Détails de l'erreur: {e_final}
     
     return df
 
-
 # --- INTERFACE STREAMLIT PRINCIPALE ---
 
 st.set_page_config(page_title="Planning Employé", layout="wide")
 st.title("🕒 Application de Consultation de Planning")
 st.markdown("---")
-
 
 try:
     # 1. Charger les données 
