@@ -1,14 +1,13 @@
 import pandas as pd
 import streamlit as st
 import datetime
-import csv # Nécessaire pour le paramètre quoting=3
+import csv 
 
-# --- CONFIGURATION DU FICHIER CORRIGÉE ---
-# 🔑 CORRECTION N°1 : Nom exact du fichier
+# --- CONFIGURATION DU FICHIER ---
+# Nom exact du fichier
 NOM_DU_FICHIER = "planning.xlsx"
 
-# 🔑 CORRECTION N°2 : Séparateur. On utilise la virgule dans le read_csv.
-# On garde cette variable pour référence, mais le paramètre de lecture est corrigé.
+# Séparateur. On utilise la virgule dans le read_csv.
 SEPARATEUR_CSV = ',' 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -52,20 +51,20 @@ def calculer_heures_travaillees(df_planning):
         return df_planning, "Erreur de calcul"
 
 
-# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRIGÉE DÉFINITIVE) ---
+# --- FONCTION DE CHARGEMENT DES DONNÉES ---
 
 @st.cache_data
 def charger_donnees(fichier):
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
-        # 🔑 CORRECTION N°3 : sep=',' + quoting=3 pour ignorer les guillemets et résoudre l'erreur
+        # sep=',' + quoting=csv.QUOTE_NONE + skipinitialspace=True pour la robustesse
         df = pd.read_csv(
             fichier, 
             sep=',', 
             encoding='latin-1', 
             engine='python', 
             skipinitialspace=True, 
-            quoting=csv.QUOTE_NONE # Équivalent à quoting=3
+            quoting=csv.QUOTE_NONE
         )
         
         # Nettoyage des noms de colonnes et des données
@@ -116,7 +115,7 @@ st.markdown("---")
 
 
 try:
-    # 1. Charger les données (Note : on ne passe plus le séparateur en argument)
+    # 1. Charger les données 
     df_initial = charger_donnees(NOM_DU_FICHIER)
     
     # 2. Préparer la liste des employés uniques
@@ -151,3 +150,19 @@ try:
         )
         
         st.subheader(f"Détail des services pour {employe_selectionne}")
+        
+        # Affichage du tableau de planning
+        st.dataframe(
+            df_resultat[['SEMAINE ET JOUR', COL_DEBUT, COL_FIN, 'Durée du service']],
+            use_container_width=True,
+            column_config={
+                "SEMAINE ET JOUR": st.column_config.Column("Semaine et Jour", width="large"),
+                COL_DEBUT: st.column_config.Column("Début"),
+                COL_FIN: st.column_config.Column("Fin"),
+                "Durée du service": st.column_config.DurationColumn("Durée", format="HH:mm")
+            },
+            hide_index=True
+        )
+        
+except Exception as e:
+    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
