@@ -29,17 +29,18 @@ def get_dates_for_week(week_str, year=2025):
     }
     
     try:
+        # Tente de convertir S41 en 41
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
         return week_str
 
     try:
-        # Trouver la date du jeudi de la semaine pour une meilleure précision ISO
+        # Calcul des dates à partir du numéro de semaine ISO
         d = date(year, 1, 4) 
         date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
         date_fin = date_debut + timedelta(days=6)
         
-        # Formatage manuel
+        # Formatage de l'affichage (ex: 15 décembre)
         date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
         date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
 
@@ -63,6 +64,7 @@ def calculer_heures_travaillees(df_planning):
             if isinstance(val, (datetime.time, pd.Timestamp)):
                 return str(val)
             elif isinstance(val, (int, float)) and 0 <= val <= 1: 
+                # Conversion des heures Excel (format float)
                 total_seconds = val * 86400 
                 h = int(total_seconds // 3600)
                 m = int((total_seconds % 3600) // 60)
@@ -77,71 +79,12 @@ def calculer_heures_travaillees(df_planning):
         def calculer_duree(row):
             duree = row['Duree_Fin'] - row['Duree_Debut']
             if duree < pd.Timedelta(0):
-                duree += pd.Timedelta(days=1)
+                duree += pd.Timedelta(days=1) # Gère les horaires de nuit
             return duree
 
         df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree, axis=1)
         
         df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
         
-        # 3. Calcul du total d'heures
-        total_duree = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service'].sum()
-        
-        secondes_totales = total_duree.total_seconds()
-        heures = int(secondes_totales // 3600)
-        minutes = int((secondes_totales % 3600) // 60)
-        
-        return df_planning, f"{heures}h {minutes}min"
-        
-    except Exception as e:
-        df_planning['Durée du service'] = pd.NaT
-        return df_planning, f"Erreur de calcul: {e}"
-
-
-# --- FONCTION DE CHARGEMENT DES DONNÉES (VERSION EXCEL + CSV ROBUSTE) ---
-
-@st.cache_data
-def charger_donnees(fichier):
-    """Charge le fichier (Excel ou CSV) et nettoie les données."""
-    try:
-        # Tenter de lire en tant qu'Excel
-        df = pd.read_excel(fichier)
-    except Exception:
-        try:
-            # Si échec, tenter de lire en tant que CSV (avec point-virgule, commun en français)
-            df = pd.read_csv(fichier, sep=';', encoding='latin1')
-        except Exception as e:
-            # Si échec, tenter de lire en tant que CSV standard (avec virgule)
-            try:
-                df = pd.read_csv(fichier, encoding='latin1') 
-            except Exception as e_final:
-                st.error(f"""
-**ERREUR CRITIQUE : Impossible de lire le fichier de données.**
-Vérifiez que le fichier `{fichier}` est dans le bon format (.xlsx ou .csv) et que son nom correspond exactement à la variable `NOM_DU_FICHIER` dans `app.py`.
-Détails de l'erreur: {e_final}
-""")
-                st.stop()
-    
-    # --- NETTOYAGE DES DONNÉES (commun aux deux méthodes) ---
-    df.columns = df.columns.str.strip()
-    
-    df[COL_DEBUT] = df[COL_DEBUT].fillna("")
-    df[COL_FIN] = df[COL_FIN].fillna("")
-
-    for col in df.columns:
-        if df[col].dtype == 'object' or df[col].dtype.name == 'category':
-            df[col] = df[col].astype(str).str.strip()
-            
-    df = df.dropna(how='all')
-    
-    df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
-    df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
-        
-    df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
-    
-    return df
-
-
-# --- INTERFACE STREAMLIT PRINCIPALE ---
-
-st.set_
+        # 3. Calcul du total d'heures (pour la semaine)
+        total_duree
