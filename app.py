@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 # --- CONFIGURATION DU FICHIER ---
 # Nom exact du fichier. ATTENTION : Vous avez défini "planningss.xlsx".
-NOM_DU_FICHIER = "planningss.xlsx"
+NOM_DU_FICHIER = "plannings.xlsx"
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
