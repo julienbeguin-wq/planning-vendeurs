@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 import datetime
 from datetime import date, timedelta
-import yaml # Utilisé par streamlit-authenticator
+import yaml 
 from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
 
@@ -154,84 +154,4 @@ def charger_donnees(fichier):
     df[COL_FIN] = df[COL_FIN].fillna("")
 
     for col in df.columns:
-        if df[col].dtype == 'object' or df[col].dtype.name == 'category':
-            df[col] = df[col].astype(str).str.strip()
-            
-    df = df.dropna(how='all')
-    df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
-    df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
-    df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
-    
-    return df
-
-
-# --- INTERFACE STREAMLIT PRINCIPALE AVEC AUTHENTIFICATION ---
-
-st.set_page_config(page_title="Planning Employé", layout="wide")
-
-# NOUVEAU : Initialisation de l'authentification
-authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days']
-)
-
-# Affichage du formulaire de connexion
-# 'Login' est le nom du formulaire, 'main' pour l'afficher dans le corps de la page
-name, authentication_status, username = authenticator.login('Login', 'main')
-
-# --- LOGIQUE POST-CONNEXION ---
-
-if st.session_state["authentication_status"]:
-    # L'utilisateur est connecté
-
-    # 1. Affichage du Header personnalisé et du bouton de déconnexion
-    st.sidebar.markdown(f"Bienvenue **{name}**")
-    authenticator.logout('Déconnexion', 'sidebar') # Bouton de déconnexion dans la sidebar
-    
-    st.logo(NOM_DU_LOGO, icon_image=NOM_DU_LOGO) 
-    st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
-    st.markdown("---")
-
-
-    try:
-        # 2. Charger les données (Le reste de votre application)
-        df_initial = charger_donnees(NOM_DU_FICHIER)
-        
-        liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
-        
-        if not liste_employes or (len(liste_employes) == 1 and str(liste_employes[0]).upper() in ['', 'NAN', 'NONE', 'N/A']):
-            st.error(f"**ERREUR DE DONNÉES :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide.")
-            st.stop()
-
-        liste_semaines_brutes = sorted(df_initial[COL_SEMAINE].unique().tolist())
-        liste_semaines_formatees = [get_dates_for_week(s) for s in liste_semaines_brutes]
-        semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
-        
-        # 3. Créer les menus déroulants dans le côté (Sidebar)
-        st.sidebar.header("Sélections")
-        
-        employe_selectionne = st.sidebar.selectbox(
-            'Sélectionnez l\'employé',
-            liste_employes
-        )
-
-        semaine_selectionnee_formattee = st.sidebar.selectbox(
-            'Sélectionnez la semaine',
-            liste_semaines_formatees
-        )
-        
-        semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
-
-        # 4. Afficher les résultats pour l'employé et la semaine sélectionnés
-        if employe_selectionne and semaine_selectionnee_brute:
-            
-            # Filtrer par employé et par semaine
-            df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
-            df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee_brute].copy()
-            
-            # GESTION DE L'EXCEPTION NOËL (JEUDI S52)
-            if semaine_selectionnee_brute == 'S52':
-                df_filtre_avant = len(df_filtre)
-                df_filtre = df_filtre[df
+        if df[col].dtype == 'object' or df[col].dtype.name == '
