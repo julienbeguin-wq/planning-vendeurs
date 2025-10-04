@@ -55,6 +55,7 @@ def calculer_heures_travaillees(df_planning):
         
         df_planning_calc['Durée du service'] = pd.to_timedelta(df_planning_calc['Durée du service'], errors='coerce')
         
+        # Le calcul du total est maintenu ici, même s'il n'est pas affiché
         total_duree = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service'].sum()
         
         secondes_totales = total_duree.total_seconds()
@@ -93,3 +94,86 @@ def charger_donnees(fichier):
                 
         # Supprimer les lignes vides
         df = df.dropna(how='all')
+        
+        # S'assurer que les jours sont en majuscules pour le tri
+        df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
+            
+        # Créer une colonne pour l'affichage
+        df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
+        
+        return df
+    
+    except FileNotFoundError:
+        st.error(f"""
+        **ERREUR CRITIQUE : Fichier non trouvé.**
+        Le fichier de données nommé `{fichier}` doit être dans le même répertoire que `app.py` sur GitHub.
+        """)
+        st.stop()
+        
+    except Exception as e:
+        st.error(f"Impossible de charger le fichier Excel. Détails: {e}. Vérifiez que le fichier '{fichier}' est bien au format .xlsx.")
+        st.stop()
+
+
+# --- INTERFACE STREAMLIT PRINCIPALE ---
+
+st.set_page_config(page_title="Planning Employé", layout="wide")
+st.title("🕒 Application de Consultation de Planning")
+st.markdown("---")
+
+
+try:
+    # 1. Charger les données 
+    df_initial = charger_donnees(NOM_DU_FICHIER)
+    
+    # 2. Préparer la liste des employés uniques
+    liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
+    
+    # 3. Créer le menu déroulant sur le côté (Sidebar)
+    st.sidebar.header("Sélectionnez votre profil")
+    employe_selectionne = st.sidebar.selectbox(
+        'Qui êtes-vous ?',
+        liste_employes
+    )
+
+    # 4. Afficher les résultats pour l'employé sélectionné
+    if employe_selectionne:
+        
+        df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
+        
+        # Trier par Semaine, puis par ordre logique des Jours
+        df_employe[COL_JOUR] = pd.Categorical(df_employe[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
+        df_employe = df_employe.sort_values(by=[COL_SEMAINE, COL_JOUR])
+        
+        # Calculer les heures
+        df_resultat, total_heures_format = calculer_heures_travaillees(df_employe)
+        
+        # FIX ULTIME : Convertir la durée en chaîne formatée (HH:mm)
+        def format_duration(x):
+            if pd.isna(x) or x.total_seconds() <= 0:
+                return ""
+            h = int(x.total_seconds() // 3600)
+            m = int((x.total_seconds() % 3600) // 60)
+            return f"{h:02d}:{m:02d}"
+            
+        df_resultat['Durée du service (Affichage)'] = df_resultat['Durée du service'].apply(format_duration)
+        
+        # --- AFFICHAGE PRINCIPAL ---
+        
+        st.subheader(f"Détail des services pour {employe_selectionne}")
+        
+        # Affichage du tableau de planning
+        st.dataframe(
+            df_resultat[['SEMAINE ET JOUR', COL_DEBUT, COL_FIN, 'Durée du service (Affichage)']],
+            use_container_width=True,
+            column_config={
+                "SEMAINE ET JOUR": st.column_config.Column("Semaine et Jour", width="large"),
+                COL_DEBUT: st.column_config.Column("Début"),
+                COL_FIN: st.column_config.Column("Fin"),
+                "Durée du service (Affichage)": "Durée du service" 
+            },
+            hide_index=True
+        )
+        
+except Exception as e:
+    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
