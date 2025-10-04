@@ -1,11 +1,10 @@
 import pandas as pd
 import streamlit as st
 import datetime
-import csv 
-# import re # n'est plus nécessaire
+import csv # On garde csv juste au cas où, mais n'est plus utilisé pour la lecture
 
 # --- CONFIGURATION DU FICHIER ---
-# Nom exact du fichier
+# Nom exact du fichier Excel
 NOM_DU_FICHIER = "planning.xlsx"
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -25,8 +24,12 @@ def calculer_heures_travaillees(df_planning):
     df_planning = df_planning.fillna({COL_DEBUT: '00:00:00', COL_FIN: '00:00:00'})
 
     try:
-        df_planning['Duree_Debut'] = pd.to_timedelta(df_planning[COL_DEBUT].astype(str).str.strip())
-        df_planning['Duree_Fin'] = pd.to_timedelta(df_planning[COL_FIN].astype(str).str.strip())
+        # Assurez-vous que les colonnes d'heures sont traitées comme des chaînes avant conversion
+        df_planning[COL_DEBUT] = df_planning[COL_DEBUT].astype(str).str.strip()
+        df_planning[COL_FIN] = df_planning[COL_FIN].astype(str).str.strip()
+        
+        df_planning['Duree_Debut'] = pd.to_timedelta(df_planning[COL_DEBUT])
+        df_planning['Duree_Fin'] = pd.to_timedelta(df_planning[COL_FIN])
         
         def calculer_duree(row):
             duree = row['Duree_Fin'] - row['Duree_Debut']
@@ -48,25 +51,14 @@ def calculer_heures_travaillees(df_planning):
         return df_planning, "Erreur de calcul"
 
 
-# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRIGÉE DÉFINITIVE) ---
+# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRECTION LECTURE EXCEL) ---
 
 @st.cache_data
 def charger_donnees(fichier):
-    """Charge le fichier CSV une seule fois et nettoie les données."""
+    """Charge le fichier Excel une seule fois et nettoie les données."""
     try:
-        # 🔑 CORRECTION FINALE : sep=',' + skipinitialspace=True + quoting=csv.QUOTE_NONE
-        df = pd.read_csv(
-            fichier, 
-            sep=',', 
-            encoding='latin-1', 
-            engine='python', # Nécessaire pour les options avancées
-            skipinitialspace=True, 
-            quoting=csv.QUOTE_NONE 
-        )
-        
-        # Nettoyage des colonnes (retrait de la colonne 'TOTAL JOUR' qui n'est pas utilisée)
-        colonnes_a_garder = [COL_EMPLOYE, COL_SEMAINE, COL_JOUR, COL_DEBUT, COL_FIN]
-        df = df[df.columns.intersection(colonnes_a_garder)]
+        # 🔑 CORRECTION CRITIQUE : Utilisation de pd.read_excel pour contourner les problèmes CSV
+        df = pd.read_excel(fichier)
         
         # Nettoyage des noms de colonnes et des données
         df.columns = df.columns.str.strip()
@@ -76,6 +68,9 @@ def charger_donnees(fichier):
                 
         # Supprimer les lignes vides
         df = df.dropna(how='all')
+        
+        # S'assurer que les jours et semaines sont en majuscules pour le tri
+        df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
             
         # Créer une colonne pour l'affichage
         df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
@@ -89,22 +84,8 @@ def charger_donnees(fichier):
         """)
         st.stop()
         
-    except UnicodeDecodeError:
-        st.error(f"""
-        **ERREUR D'ENCODAGE : Caractères illisibles.**
-        L'application n'a pas pu lire le fichier (encodage 'latin-1').
-        """)
-        st.stop()
-
-    except pd.errors.ParserError as e:
-        st.error(f"""
-        **ERREUR DE LECTURE DU FICHIER : Séparateur ou structure incorrecte.**
-        Le fichier semble être mal formaté. Détails: {e}
-        """)
-        st.stop()
-        
     except Exception as e:
-        st.error(f"Impossible de charger le fichier CSV. Erreur générale: {e}")
+        st.error(f"Impossible de charger le fichier Excel. Détails: {e}. Vérifiez que le fichier '{fichier}' est bien au format .xlsx.")
         st.stop()
 
 
