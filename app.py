@@ -4,7 +4,7 @@ import datetime
 
 # --- CONFIGURATION DU FICHIER CORRIGÉE ---
 # Le nom exact de votre fichier est : 'planning.xlsx'
-NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
+NOM_DU_FICHIER = "planning.xlsx"
 SEPARATEUR_CSV = ',' 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
