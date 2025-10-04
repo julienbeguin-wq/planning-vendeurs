@@ -111,4 +111,57 @@ def charger_donnees(fichier):
             # Si échec, tenter de lire en tant que CSV (avec point-virgule, commun en français)
             df = pd.read_csv(fichier, sep=';', encoding='latin1')
         except Exception as e:
-            # Si échec, tenter de lire en tant
+            # Si échec, tenter de lire en tant que CSV standard (avec virgule)
+            try:
+                df = pd.read_csv(fichier, encoding='latin1') 
+            except Exception as e_final:
+                st.error(f"""
+                **ERREUR CRITIQUE : Impossible de lire le fichier de données.**
+                Vérifiez que le fichier `{fichier}` est dans le bon format (.xlsx ou .csv) et que son nom correspond exactement à la variable `NOM_DU_FICHIER` dans `app.py`.
+                Détails de l'erreur: {e_final}
+                """)
+                st.stop()
+    
+    # --- NETTOYAGE DES DONNÉES (commun aux deux méthodes) ---
+    df.columns = df.columns.str.strip()
+    
+    df[COL_DEBUT] = df[COL_DEBUT].fillna("")
+    df[COL_FIN] = df[COL_FIN].fillna("")
+
+    for col in df.columns:
+        if df[col].dtype == 'object' or df[col].dtype.name == 'category':
+            df[col] = df[col].astype(str).str.strip()
+            
+    df = df.dropna(how='all')
+    
+    df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
+    df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
+        
+    df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
+    
+    return df
+
+
+# --- INTERFACE STREAMLIT PRINCIPALE ---
+
+st.set_page_config(page_title="Planning Employé", layout="wide")
+st.title("🕒 Application de Consultation de Planning")
+st.markdown("---")
+
+
+try:
+    # 1. Charger les données 
+    df_initial = charger_donnees(NOM_DU_FICHIER)
+    
+    # 2. Préparer les listes de sélection
+    liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
+    
+    # DIAGNOSTIC CRITIQUE : Si la liste des employés est vide, afficher l'erreur.
+    if not liste_employes or (len(liste_employes) == 1 and str(liste_employes[0]).upper() in ['', 'NAN', 'NONE', 'N/A']):
+        st.error(f"""
+        **ERREUR DE DONNÉES : Impossible de trouver les employés.**
+        Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employés (`'{COL_EMPLOYE}'`) est vide ou n'a pas été trouvée correctement.
+        
+        **Action :**
+        1. Confirmez que la colonne dans votre fichier Excel/CSV s'appelle **exactement** `{COL_EMPLOYE}`.
+        2. Si votre fichier est un CSV, essayez de le renommer en `.csv` et de changer `NOM_DU_FICHIER` en `"pl
