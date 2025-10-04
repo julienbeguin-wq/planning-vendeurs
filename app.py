@@ -6,6 +6,7 @@ from datetime import date, timedelta
 # --- CONFIGURATION DU FICHIER ---
 # Nom exact du fichier. ATTENTION : Vous avez défini "planningss.xlsx".
 NOM_DU_FICHIER = "planningss.xlsx"
+NOM_DU_LOGO = "mon_logo.png" # <<< Remplacer par le nom de votre fichier logo
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
@@ -160,7 +161,12 @@ Détails de l'erreur: {e_final}
 # --- INTERFACE STREAMLIT PRINCIPALE ---
 
 st.set_page_config(page_title="Planning Employé", layout="wide")
-st.title("🕒 Application de Consultation de Planning")
+
+# NOUVEAU : Affichage du logo dans le coin supérieur gauche
+st.logo(NOM_DU_LOGO, icon_image=NOM_DU_LOGO) 
+
+# Le titre est affiché en Markdown pour le centrer si besoin, sinon vous pouvez le retirer.
+st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 
@@ -225,7 +231,6 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
         
         # Convertir la durée en chaîne formatée (HH:mm)
-        # Nécessaire pour le calcul mais pas pour l'affichage de la colonne maintenant
         def format_duration(x):
             if pd.isna(x) or x.total_seconds() <= 0:
                 return ""
@@ -241,7 +246,6 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
         st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
         
         # Affichage du tableau de planning
-        # Seules les colonnes JOUR, DEBUT et FIN sont affichées
         st.dataframe(
             df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]],
             use_container_width=True,
