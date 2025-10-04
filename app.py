@@ -85,4 +85,63 @@ def calculer_heures_travaillees(df_planning):
         df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
         
         # 3. Calcul du total d'heures
-        total_duree = df_planning_
+        total_duree = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service'].sum()
+        
+        secondes_totales = total_duree.total_seconds()
+        heures = int(secondes_totales // 3600)
+        minutes = int((secondes_totales % 3600) // 60)
+        
+        return df_planning, f"{heures}h {minutes}min"
+        
+    except Exception as e:
+        df_planning['Durée du service'] = pd.NaT
+        return df_planning, f"Erreur de calcul: {e}"
+
+
+# --- FONCTION DE CHARGEMENT DES DONNÉES (VERSION EXCEL + CSV ROBUSTE) ---
+
+@st.cache_data
+def charger_donnees(fichier):
+    """Charge le fichier (Excel ou CSV) et nettoie les données."""
+    try:
+        # Tenter de lire en tant qu'Excel
+        df = pd.read_excel(fichier)
+    except Exception:
+        try:
+            # Si échec, tenter de lire en tant que CSV (avec point-virgule, commun en français)
+            df = pd.read_csv(fichier, sep=';', encoding='latin1')
+        except Exception as e:
+            # Si échec, tenter de lire en tant que CSV standard (avec virgule)
+            try:
+                df = pd.read_csv(fichier, encoding='latin1') 
+            except Exception as e_final:
+                st.error(f"""
+**ERREUR CRITIQUE : Impossible de lire le fichier de données.**
+Vérifiez que le fichier `{fichier}` est dans le bon format (.xlsx ou .csv) et que son nom correspond exactement à la variable `NOM_DU_FICHIER` dans `app.py`.
+Détails de l'erreur: {e_final}
+""")
+                st.stop()
+    
+    # --- NETTOYAGE DES DONNÉES (commun aux deux méthodes) ---
+    df.columns = df.columns.str.strip()
+    
+    df[COL_DEBUT] = df[COL_DEBUT].fillna("")
+    df[COL_FIN] = df[COL_FIN].fillna("")
+
+    for col in df.columns:
+        if df[col].dtype == 'object' or df[col].dtype.name == 'category':
+            df[col] = df[col].astype(str).str.strip()
+            
+    df = df.dropna(how='all')
+    
+    df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
+    df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
+        
+    df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
+    
+    return df
+
+
+# --- INTERFACE STREAMLIT PRINCIPALE ---
+
+st.set_
