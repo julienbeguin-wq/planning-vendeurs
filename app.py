@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import datetime
+from datetime import date, timedelta
 
 # --- CONFIGURATION DU FICHIER ---
 # Nom exact du fichier Excel (doit être au format .xlsx)
@@ -16,10 +17,53 @@ COL_FIN = 'HEURE FIN'
 # Ordre logique des jours
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
+# --- NOUVELLE FONCTION DE CONVERSION DE SEMAINE EN DATES ---
+
+def get_dates_for_week(week_str, year=2025):
+    """
+    Convertit une chaîne de semaine (ex: 'S41') en dates de début et de fin.
+    NOTE : Nous utilisons 2025 comme année de référence, car le planning couvre fin d'année.
+    """
+    try:
+        # Extraire le numéro de semaine (ex: 41 de 'S41')
+        week_num = int(week_str.upper().replace('S', ''))
+    except ValueError:
+        return week_str, week_str # Retourne la chaîne originale si le format n'est pas SXX
+
+    # Calcule la date du lundi (premier jour) de la semaine
+    # Utilise la convention ISO 8601 (lundi=1, dimanche=7)
+    try:
+        d = date(year, 1, 1) # Démarre au 1er janvier de l'année
+        
+        # Trouver le premier lundi de l'année
+        if d.isoweekday() > 1:
+            d += timedelta(days=7 - d.isoweekday() + 1)
+        
+        # Calculer la date de début de la semaine souhaitée
+        # Le "-1" est pour s'ajuster à la première semaine de l'année
+        date_debut = d + timedelta(days=(week_num - 1) * 7)
+        
+        # Calculer la date de fin (dimanche)
+        date_fin = date_debut + timedelta(days=6)
+        
+        # Formatage du texte
+        date_debut_str = date_debut.strftime("%d %B").lstrip('0')
+        date_fin_str = date_fin.strftime("%d %B").lstrip('0')
+        
+        # Affichage du mois en minuscules (ex: 06 octobre -> 6 octobre)
+        date_debut_str = date_debut_str.replace(date_debut_str.split(' ')[1], date_debut_str.split(' ')[1].lower())
+        date_fin_str = date_fin_str.replace(date_fin_str.split(' ')[1], date_fin_str.split(' ')[1].lower())
+
+        return f"{week_str} : du {date_debut_str} au {date_fin_str}"
+
+    except Exception:
+        # En cas d'erreur de calcul (ex: semaine non valide), retourne la chaîne originale
+        return week_str
+
+
 # --- FONCTION DE CALCUL ---
 def calculer_heures_travaillees(df_planning):
-    """Calcule le total des heures travaillées et la durée par service."""
-    
+    # ... (le corps de cette fonction reste inchangé) ...
     df_planning_calc = df_planning.copy()
 
     try:
@@ -63,131 +107,4 @@ def calculer_heures_travaillees(df_planning):
         
         df_planning['Durée du service'] = df_planning_calc['Durée du service']
 
-        return df_planning, f"{heures}h {minutes}min"
-        
-    except Exception as e:
-        df_planning['Durée du service'] = pd.NaT
-        return df_planning, f"Erreur de calcul: {e}"
-
-
-# --- FONCTION DE CHARGEMENT DES DONNÉES (VERSION EXCEL) ---
-
-@st.cache_data
-def charger_donnees(fichier):
-    """Charge le fichier Excel une seule fois et nettoie les données."""
-    try:
-        # Lecture du fichier Excel (nécessite openpyxl)
-        df = pd.read_excel(fichier)
-        
-        # Nettoyage des noms de colonnes et des données
-        df.columns = df.columns.str.strip()
-        
-        # FIX: Remplacement immédiat des NaN/NaT par des chaînes vides ("") pour l'affichage
-        df[COL_DEBUT] = df[COL_DEBUT].fillna("")
-        df[COL_FIN] = df[COL_FIN].fillna("")
-
-        for col in df.columns:
-            # Conversion de toutes les colonnes objet en string et nettoyage des espaces
-            if df[col].dtype == 'object' or df[col].dtype.name == 'category':
-                df[col] = df[col].astype(str).str.strip()
-                
-        # Supprimer les lignes vides
-        df = df.dropna(how='all')
-        
-        # S'assurer que les jours sont en majuscules pour le tri
-        df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
-        # S'assurer que les semaines sont en majuscules et nettoyées
-        df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
-            
-        # Créer une colonne pour l'affichage
-        df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
-        
-        return df
-    
-    except FileNotFoundError:
-        st.error(f"""
-        **ERREUR CRITIQUE : Fichier non trouvé.**
-        Le fichier de données nommé `{fichier}` doit être dans le même répertoire que `app.py` sur GitHub.
-        """)
-        st.stop()
-        
-    except Exception as e:
-        st.error(f"Impossible de charger le fichier Excel. Détails: {e}. Vérifiez que le fichier '{fichier}' est bien au format .xlsx.")
-        st.stop()
-
-
-# --- INTERFACE STREAMLIT PRINCIPALE ---
-
-st.set_page_config(page_title="Planning Employé", layout="wide")
-st.title("🕒 Application de Consultation de Planning")
-st.markdown("---")
-
-
-try:
-    # 1. Charger les données 
-    df_initial = charger_donnees(NOM_DU_FICHIER)
-    
-    # 2. Préparer les listes de sélection
-    liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
-    liste_semaines = sorted(df_initial[COL_SEMAINE].unique().tolist()) # NOUVEAU : Récupérer les semaines
-    
-    # 3. Créer les menus déroulants dans le côté (Sidebar)
-    st.sidebar.header("Sélections")
-    
-    employe_selectionne = st.sidebar.selectbox(
-        'Sélectionnez l\'employé',
-        liste_employes
-    )
-
-    # NOUVEAU : Menu déroulant pour la sélection de la semaine
-    semaine_selectionnee = st.sidebar.selectbox(
-        'Sélectionnez la semaine',
-        liste_semaines
-    )
-
-    # 4. Afficher les résultats pour l'employé et la semaine sélectionnés
-    if employe_selectionne and semaine_selectionnee:
-        
-        # Filtrer d'abord par employé
-        df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
-        
-        # NOUVEAU : Filtrer ensuite par semaine
-        df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee].copy()
-        
-        # Trier par Jour logique
-        df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
-        df_filtre = df_filtre.sort_values(by=[COL_JOUR])
-        
-        # Calculer les heures (calcul du total maintenu mais non affiché)
-        df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
-        
-        # FIX ULTIME : Convertir la durée en chaîne formatée (HH:mm)
-        def format_duration(x):
-            if pd.isna(x) or x.total_seconds() <= 0:
-                return ""
-            h = int(x.total_seconds() // 3600)
-            m = int((x.total_seconds() % 3600) // 60)
-            return f"{h:02d}:{m:02d}"
-            
-        df_resultat['Durée du service (Affichage)'] = df_resultat['Durée du service'].apply(format_duration)
-        
-        # --- AFFICHAGE PRINCIPAL ---
-        
-        st.subheader(f"Détail des services pour {employe_selectionne} (Semaine {semaine_selectionnee})")
-        
-        # Affichage du tableau de planning
-        st.dataframe(
-            # N'afficher que les jours, l'heure début/fin, et la durée
-            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service (Affichage)']],
-            use_container_width=True,
-            column_config={
-                COL_JOUR: st.column_config.Column("Jour", width="large"),
-                COL_DEBUT: st.column_config.Column("Début"),
-                COL_FIN: st.column_config.Column("Fin"),
-                "Durée du service (Affichage)": "Durée du service" 
-            },
-            hide_index=True
-        )
-        
-except Exception as e:
-    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
+        return df_planning, f
