@@ -4,7 +4,7 @@ import datetime
 
 # --- CONFIGURATION DU FICHIER ---
 # Nom exact de votre fichier CSV
-NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
+NOM_DU_FICHIER = "planning.xlsx"
 
 # 🔑 CORRECTION SÉPARATEUR : Le point-virgule est souvent nécessaire pour les CSV français
 SEPARATEUR_CSV = ';' 
