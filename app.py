@@ -3,7 +3,7 @@ import streamlit as st
 import datetime
 
 # --- CONFIGURATION DU FICHIER CORRIGÉE ---
-# Le nom exact de votre fichier est : 'planning.xlsx - De la S41 à la S52.csv'
+# Le nom exact de votre fichier est : 'planning.xlsx'
 NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
 SEPARATEUR_CSV = ',' 
 
