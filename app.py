@@ -139,5 +139,40 @@ try:
     
 except Exception as e:
     st.error(f"Le lancement a échoué. Assurez-vous que Conda est activé et que les fichiers sont au bon endroit. Erreur générale: {e}")
+import streamlit as st
+import pandas as pd
 
+# Nom de fichier exact
+FILE_NAME = 'planning.xlsx - De la S41 à la S52.csv'
+
+st.set_page_config(layout="wide", page_title="Planification Vendeurs")
+st.title("Tableau de bord de Planification")
+
+try:
+    # 🔑 CORRECTION DE L'ENCODAGE: On passe l'argument 'encoding' à 'latin-1'
+    df = pd.read_csv(FILE_NAME, encoding='latin-1')
+    
+    # Nettoyage des noms de colonnes
+    df.columns = df.columns.str.strip()
+    
+    st.success(f"Fichier '{FILE_NAME}' chargé avec succès en utilisant l'encodage latin-1 !")
+    
+    # Affichage des premières lignes pour confirmation
+    st.dataframe(df.head())
+    
+    # ... votre code Streamlit continue ici ...
+    
+except FileNotFoundError:
+    st.error(f"""
+    **ERREUR : Fichier non trouvé.**
+    Le fichier nommé `{FILE_NAME}` est introuvable.
+    """)
+except UnicodeDecodeError as e:
+    st.error(f"""
+    **ERREUR : Problème d'encodage (Unicode Decode Error).**
+    Le fichier CSV n'a pas pu être lu. Tentez d'utiliser un autre encodage si 'latin-1' ne fonctionne pas (ex: 'windows-1252').
+    Détails: {e}
+    """)
+except Exception as e:
+    st.error(f"Une autre erreur est survenue lors du traitement du fichier : {e}")
 # --- FIN DU CODE ---
