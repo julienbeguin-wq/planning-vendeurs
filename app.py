@@ -1,13 +1,14 @@
 import pandas as pd
 import streamlit as st
 import datetime
+import re # Nécessaire pour l'expression régulière du séparateur
 
-# --- CONFIGURATION DU FICHIER CORRIGÉE ---
-# 🔑 CORRECTION N°1 : Nom exact du fichier de données sur GitHub
+# --- CONFIGURATION DU FICHIER ---
+# 🔑 CORRECTION N°1 : Nom exact du fichier
 NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
 
-# Le séparateur réel est la virgule, mais nous allons utiliser un séparateur REGEX 
-# pour gérer les espaces autour de la virgule (ex: "vendeur , semaine")
+# 🔑 CORRECTION N°2 : Séparateur Regex pour gérer les espaces autour de la virgule
+# r'\s*,\s*' signifie : (espaces optionnels) + (virgule) + (espaces optionnels)
 SEPARATEUR_REGEX = r'\s*,\s*' 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -51,14 +52,13 @@ def calculer_heures_travaillees(df_planning):
         return df_planning, "Erreur de calcul"
 
 
-# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRIGÉE) ---
+# --- FONCTION DE CHARGEMENT DES DONNÉES ---
 
 @st.cache_data
 def charger_donnees(fichier, separateur_regex):
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
-        # 🔑 CORRECTION N°2 : Utilisation d'une REGEX pour le séparateur et 'engine=python'
-        # La regex r'\s*,\s*' correspond à n'importe quel nombre d'espaces, une virgule, puis n'importe quel nombre d'espaces.
+        # Utilisation de l'engine Python obligatoire pour la regex
         df = pd.read_csv(fichier, sep=separateur_regex, engine='python', encoding='latin-1')
         
         # Nettoyage des noms de colonnes et des données
@@ -92,7 +92,7 @@ def charger_donnees(fichier, separateur_regex):
     except pd.errors.ParserError as e:
         st.error(f"""
         **ERREUR DE LECTURE DU FICHIER : Séparateur ou structure incorrecte.**
-        Le fichier semble être mal formaté à la ligne {e}.
+        Le fichier semble être mal formaté. Détails: {e}
         """)
         st.stop()
         
@@ -124,3 +124,39 @@ try:
 
     # 4. Afficher les résultats pour l'employé sélectionné
     if employe_selectionne:
+        
+        df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
+        
+        # Trier par Semaine, puis par ordre logique des Jours
+        df_employe[COL_JOUR] = pd.Categorical(df_employe[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
+        df_employe = df_employe.sort_values(by=[COL_SEMAINE, COL_JOUR])
+        
+        # Calculer les heures
+        df_resultat, total_heures_format = calculer_heures_travaillees(df_employe)
+        
+        # --- AFFICHAGE PRINCIPAL ---
+        
+        st.metric(
+            label="Total des heures cumulées", 
+            value=total_heures_format,
+            delta=f"sur {len(df_resultat[df_resultat['Durée du service'] > pd.Timedelta(0)])} services trouvés",
+            delta_color="off"
+        )
+        
+        st.subheader(f"Détail des services pour {employe_selectionne}")
+        
+        # Affichage du tableau de planning
+        st.dataframe(
+            df_resultat[['SEMAINE ET JOUR', COL_DEBUT, COL_FIN, 'Durée du service']],
+            use_container_width=True,
+            column_config={
+                "SEMAINE ET JOUR": st.column_config.Column("Semaine et Jour", width="large"),
+                COL_DEBUT: st.column_config.Column("Début"),
+                COL_FIN: st.column_config.Column("Fin"),
+                "Durée du service": st.column_config.DurationColumn("Durée", format="HH:mm")
+            },
+            hide_index=True
+        )
+        
+except Exception as e:
+    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
