@@ -78,8 +78,20 @@ def calculer_heures_travaillees(df_planning):
         # 2. Calcul de la durée du service
         def calculer_duree(row):
             duree = row['Duree_Fin'] - row['Duree_Debut']
+            
+            # Gère les horaires de nuit
             if duree < pd.Timedelta(0):
-                duree += pd.Timedelta(days=1) # Gère les horaires de nuit
+                duree += pd.Timedelta(days=1)
+                
+            # >>> MODIFICATION POUR LA PAUSE DÉJEUNER <<<
+            # Soustrait 1 heure de pause si la durée est supérieure à 1 heure
+            if duree > pd.Timedelta(hours=1):
+                duree -= pd.Timedelta(hours=1)
+                
+            # Assurez-vous que la durée n'est jamais négative après la pause
+            if duree < pd.Timedelta(0):
+                return pd.Timedelta(0)
+                
             return duree
 
         df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree, axis=1)
@@ -228,7 +240,7 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
                 COL_JOUR: st.column_config.Column("Jour", width="large"),
                 COL_DEBUT: st.column_config.Column("Début"),
                 COL_FIN: st.column_config.Column("Fin"),
-                "Durée du service (Affichage)": "Durée du service" 
+                "Durée du service (Affichage)": "Durée du service (Pause déduite)" 
             },
             hide_index=True
         )
