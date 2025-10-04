@@ -2,12 +2,11 @@ import pandas as pd
 import streamlit as st
 import datetime
 from datetime import date, timedelta
-import yaml
+import yaml # Utilisé par streamlit-authenticator
 from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
 
 # --- CONFIGURATION DU FICHIER ---
-# Nom exact du fichier. ATTENTION : Vous avez défini "planningss.xlsx".
 NOM_DU_FICHIER = "planningss.xlsx"
 NOM_DU_LOGO = "mon_logo.png"
 
@@ -21,41 +20,19 @@ COL_FIN = 'HEURE FIN'
 # Ordre logique des jours
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
-# --- CONFIGURATION D'AUTHENTIFICATION (MODIFIER ICI) ---
+# --- CONFIGURATION D'AUTHENTIFICATION ---
 
-# Vous DEVEZ créer les mots de passe cryptés. 
-# Si vous en avez besoin, vous pouvez utiliser un outil en ligne pour générer le hashage BCRYPT.
-
-# ...
-import yaml
-from yaml.loader import SafeLoader
-import streamlit_authenticator as stauth
-
-# --- CONFIGURATION DU FICHIER ---
-# ...
-
-# --- CONFIGURATION D'AUTHENTIFICATION (MODIFIER ICI) ---
-
-# Nouvelle méthode : Stocker les mots de passe clairs dans une liste 
-# pour le hachage, puis les assigner à la configuration.
-
-# 1. LISTE DE VOS MOTS DE PASSE EN CLAIR
-# Si vous avez déjà généré vos mots de passe hashés, 
-# vous pouvez commenter cette ligne et passer à l'étape 2.
-passwords_clairs = ['password123', 'autre_mdp']
+# 1. LISTE DE VOS MOTS DE PASSE EN CLAIR (À MODIFIER!)
+passwords_clairs = ['password123', 'autre_mdp'] # REMPLACEZ PAR VOS VRAIS MDP EN CLAIR
 
 # 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
-# stauth.Hasher nécessite maintenant un dictionnaire. Nous utilisons la liste pour la clarté.
 hashed_passwords = stauth.Hasher(passwords_clairs).generate()
 
 
 config = {
     'cookie': {
-# ... le reste du dictionnaire 'config' reste inchangé
-config = {
-    'cookie': {
         'expiry_days': 30,
-        'key': 'random_secret_key', # Clé secrète à modifier
+        'key': 'random_secret_key_please_change_this', # CLÉ SECRÈTE À MODIFIER
         'name': 'streamlit_auth_cookie'
     },
     'credentials': {
@@ -63,12 +40,12 @@ config = {
             'admin': {
                 'email': 'admin@example.com',
                 'name': 'Administrateur',
-                'password': hashed_passwords[0] # Mot de passe crypté de 'password123'
+                'password': hashed_passwords[0] 
             },
             'user1': {
                 'email': 'user1@example.com',
                 'name': 'Utilisateur Standard',
-                'password': hashed_passwords[1] # Mot de passe crypté de 'autre_mdp'
+                'password': hashed_passwords[1]
             }
         }
     },
@@ -77,11 +54,11 @@ config = {
     }
 }
 
-# --- FONCTIONS DE CONVERSION ET DE CALCUL (AUCUN CHANGEMENT) ---
+# --- FONCTION DE CONVERSION DE SEMAINE EN DATES ---
 
 def get_dates_for_week(week_str, year=2025):
     """Convertit une chaîne de semaine (ex: 'S41') en dates de début et de fin (Lundi-Dimanche)."""
-    # ... (code inchangé)
+    
     MONTHS = {
         1: "janvier", 2: "février", 3: "mars", 4: "avril", 5: "mai", 6: "juin",
         7: "juillet", 8: "août", 9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre"
@@ -105,6 +82,7 @@ def get_dates_for_week(week_str, year=2025):
     except Exception:
         return week_str
 
+# --- FONCTION DE CALCUL ---
 def calculer_heures_travaillees(df_planning):
     """Calcule le total des heures travaillées et la durée par service."""
     
@@ -132,7 +110,7 @@ def calculer_heures_travaillees(df_planning):
             if duree < pd.Timedelta(0):
                 duree += pd.Timedelta(days=1)
             if duree > pd.Timedelta(hours=1):
-                duree -= pd.Timedelta(hours=1)
+                duree -= pd.Timedelta(hours=1) # DÉDUCTION DE LA PAUSE DÉJEUNER (1 heure)
             if duree < pd.Timedelta(0):
                 return pd.Timedelta(0)
             return duree
@@ -153,15 +131,15 @@ def calculer_heures_travaillees(df_planning):
         df_planning['Durée du service'] = pd.NaT
         return df_planning, f"Erreur de calcul: {e}"
 
+# --- FONCTION DE CHARGEMENT DES DONNÉES ---
+
 @st.cache_data
 def charger_donnees(fichier):
     """Charge le fichier (Excel ou CSV) et nettoie les données."""
     try:
-        # Tenter de lire en tant qu'Excel
         df = pd.read_excel(fichier)
     except Exception:
         try:
-            # Si échec, tenter de lire en tant que CSV (avec point-virgule, commun en français)
             df = pd.read_csv(fichier, sep=';', encoding='latin1')
         except Exception as e:
             try:
@@ -200,6 +178,7 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
+# 'Login' est le nom du formulaire, 'main' pour l'afficher dans le corps de la page
 name, authentication_status, username = authenticator.login('Login', 'main')
 
 # --- LOGIQUE POST-CONNEXION ---
@@ -209,7 +188,7 @@ if st.session_state["authentication_status"]:
 
     # 1. Affichage du Header personnalisé et du bouton de déconnexion
     st.sidebar.markdown(f"Bienvenue **{name}**")
-    authenticator.logout('Déconnexion', 'sidebar')
+    authenticator.logout('Déconnexion', 'sidebar') # Bouton de déconnexion dans la sidebar
     
     st.logo(NOM_DU_LOGO, icon_image=NOM_DU_LOGO) 
     st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
@@ -255,43 +234,4 @@ if st.session_state["authentication_status"]:
             # GESTION DE L'EXCEPTION NOËL (JEUDI S52)
             if semaine_selectionnee_brute == 'S52':
                 df_filtre_avant = len(df_filtre)
-                df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
-                
-                if len(df_filtre) < df_filtre_avant:
-                    st.info(f"Note: Le **Jeudi** de la semaine S52 a été retiré (Jour de Noël).")
-
-            # Trier par Jour logique
-            df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
-            df_filtre = df_filtre.sort_values(by=[COL_JOUR])
-            
-            # Calculer les heures
-            df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
-            
-            st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
-            
-            # Affichage du tableau de planning
-            st.dataframe(
-                df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]],
-                use_container_width=True,
-                column_config={
-                    COL_JOUR: st.column_config.Column("Jour", width="large"),
-                    COL_DEBUT: st.column_config.Column("Début"),
-                    COL_FIN: st.column_config.Column("Fin"),
-                },
-                hide_index=True
-            )
-            
-            # Ligne de TOTAL
-            st.markdown(f"***")
-            st.markdown(f"**TOTAL de la semaine pour {employe_selectionne} :** **{total_heures_format}**")
-            
-    except Exception as e:
-        st.error(f"Une erreur inattendue est survenue : {e}")
-
-elif st.session_state["authentication_status"] is False:
-    # L'utilisateur a échoué à se connecter
-    st.error('Identifiant/mot de passe incorrect')
-
-elif st.session_state["authentication_status"] is None:
-    # L'utilisateur n'a pas encore entré d'informations
-    st.warning('Veuillez entrer votre identifiant et mot de passe pour accéder.')
+                df_filtre = df_filtre[df
