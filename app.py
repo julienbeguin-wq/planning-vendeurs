@@ -57,7 +57,7 @@ def calculer_heures_travaillees(df_planning):
 def charger_donnees(fichier):
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
-        # sep=',' + quoting=csv.QUOTE_NONE + skipinitialspace=True pour la robustesse
+        # Correction : sep=',' + quoting=csv.QUOTE_NONE + skipinitialspace=True pour la robustesse
         df = pd.read_csv(
             fichier, 
             sep=',', 
@@ -149,7 +149,7 @@ try:
             delta_color="off"
         )
         
-       st.subheader(f"Détail des services pour {employe_selectionne}")
+        st.subheader(f"Détail des services pour {employe_selectionne}")
         
         # Affichage du tableau de planning
         st.dataframe(
@@ -163,6 +163,6 @@ try:
             },
             hide_index=True
         )
-
+        
 except Exception as e:
     st.error(f"Une erreur inattendue est survenue au lancement : {e}")
