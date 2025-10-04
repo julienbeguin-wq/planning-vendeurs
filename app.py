@@ -5,7 +5,7 @@ import re # Nécessaire pour l'expression régulière du séparateur
 
 # --- CONFIGURATION DU FICHIER ---
 # 🔑 CORRECTION N°1 : Nom exact du fichier
-NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
+NOM_DU_FICHIER = "planning.xlsx"
 
 # 🔑 CORRECTION N°2 : Séparateur Regex pour gérer les espaces autour de la virgule
 # r'\s*,\s*' signifie : (espaces optionnels) + (virgule) + (espaces optionnels)
