@@ -2,11 +2,9 @@ import pandas as pd
 import streamlit as st
 import datetime
 from datetime import date, timedelta
-# Suppression du module locale pour éviter les erreurs de déploiement
 
 # --- CONFIGURATION DU FICHIER ---
-# Nom exact du fichier. ATTENTION : Si votre fichier est un CSV, il DOIT être nommé "planning.xlsx".
-# Sinon, vous devez changer cette variable pour le nom exact (ex: "planning.csv")
+# Nom exact du fichier. ATTENTION : Vous avez défini "planningss.xlsx".
 NOM_DU_FICHIER = "planningss.xlsx"
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -185,4 +183,39 @@ try:
         df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee_brute].copy()
         
-        # Trier par Jour
+        # Trier par Jour logique
+        df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
+        df_filtre = df_filtre.sort_values(by=[COL_JOUR])
+        
+        # Calculer les heures
+        df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
+        
+        # Convertir la durée en chaîne formatée (HH:mm)
+        def format_duration(x):
+            if pd.isna(x) or x.total_seconds() <= 0:
+                return ""
+            h = int(x.total_seconds() // 3600)
+            m = int((x.total_seconds() % 3600) // 60)
+            return f"{h:02d}:{m:02d}"
+            
+        df_resultat['Durée du service (Affichage)'] = df_resultat['Durée du service'].apply(format_duration)
+        
+        # --- AFFICHAGE PRINCIPAL ---
+        
+        st.subheader(f"Planning pour {employe_selectionne} - {semaine_selectionnee_formattee}")
+        
+        # Affichage du tableau de planning
+        st.dataframe(
+            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service (Affichage)']],
+            use_container_width=True,
+            column_config={
+                COL_JOUR: st.column_config.Column("Jour", width="large"),
+                COL_DEBUT: st.column_config.Column("Début"),
+                COL_FIN: st.column_config.Column("Fin"),
+                "Durée du service (Affichage)": "Durée du service" 
+            },
+            hide_index=True
+        )
+        
+except Exception as e:
+    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
