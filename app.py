@@ -264,3 +264,4 @@ Le fichier `{NOM_DU_FICHIER}` a été chargé, mais la colonne des noms d'employ
 except Exception as e:
     # Affiche les erreurs qui ne sont pas liées à l'indentation ou au chargement du fichier
     st.error(f"Une erreur inattendue est survenue au lancement : {e}")
+    
