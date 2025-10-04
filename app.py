@@ -26,8 +26,32 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 # Vous DEVEZ créer les mots de passe cryptés. 
 # Si vous en avez besoin, vous pouvez utiliser un outil en ligne pour générer le hashage BCRYPT.
 
-hashed_passwords = stauth.Hasher(['password123', 'autre_mdp']).generate()
+# ...
+import yaml
+from yaml.loader import SafeLoader
+import streamlit_authenticator as stauth
 
+# --- CONFIGURATION DU FICHIER ---
+# ...
+
+# --- CONFIGURATION D'AUTHENTIFICATION (MODIFIER ICI) ---
+
+# Nouvelle méthode : Stocker les mots de passe clairs dans une liste 
+# pour le hachage, puis les assigner à la configuration.
+
+# 1. LISTE DE VOS MOTS DE PASSE EN CLAIR
+# Si vous avez déjà généré vos mots de passe hashés, 
+# vous pouvez commenter cette ligne et passer à l'étape 2.
+passwords_clairs = ['password123', 'autre_mdp']
+
+# 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
+# stauth.Hasher nécessite maintenant un dictionnaire. Nous utilisons la liste pour la clarté.
+hashed_passwords = stauth.Hasher(passwords_clairs).generate()
+
+
+config = {
+    'cookie': {
+# ... le reste du dictionnaire 'config' reste inchangé
 config = {
     'cookie': {
         'expiry_days': 30,
