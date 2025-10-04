@@ -1,15 +1,15 @@
 import pandas as pd
 import streamlit as st
 import datetime
-import re # Nécessaire pour l'expression régulière du séparateur
+import csv # Nécessaire pour le paramètre quoting=3
 
-# --- CONFIGURATION DU FICHIER ---
+# --- CONFIGURATION DU FICHIER CORRIGÉE ---
 # 🔑 CORRECTION N°1 : Nom exact du fichier
-NOM_DU_FICHIER = "planning.xlsx"
+NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
 
-# 🔑 CORRECTION N°2 : Séparateur Regex pour gérer les espaces autour de la virgule
-# r'\s*,\s*' signifie : (espaces optionnels) + (virgule) + (espaces optionnels)
-SEPARATEUR_REGEX = r'\s*,\s*' 
+# 🔑 CORRECTION N°2 : Séparateur. On utilise la virgule dans le read_csv.
+# On garde cette variable pour référence, mais le paramètre de lecture est corrigé.
+SEPARATEUR_CSV = ',' 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
@@ -52,14 +52,21 @@ def calculer_heures_travaillees(df_planning):
         return df_planning, "Erreur de calcul"
 
 
-# --- FONCTION DE CHARGEMENT DES DONNÉES ---
+# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRIGÉE DÉFINITIVE) ---
 
 @st.cache_data
-def charger_donnees(fichier, separateur_regex):
+def charger_donnees(fichier):
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
-        # Utilisation de l'engine Python obligatoire pour la regex
-        df = pd.read_csv(fichier, sep=separateur_regex, engine='python', encoding='latin-1')
+        # 🔑 CORRECTION N°3 : sep=',' + quoting=3 pour ignorer les guillemets et résoudre l'erreur
+        df = pd.read_csv(
+            fichier, 
+            sep=',', 
+            encoding='latin-1', 
+            engine='python', 
+            skipinitialspace=True, 
+            quoting=csv.QUOTE_NONE # Équivalent à quoting=3
+        )
         
         # Nettoyage des noms de colonnes et des données
         df.columns = df.columns.str.strip()
@@ -109,8 +116,8 @@ st.markdown("---")
 
 
 try:
-    # 1. Charger les données en utilisant le séparateur REGEX
-    df_initial = charger_donnees(NOM_DU_FICHIER, SEPARATEUR_REGEX)
+    # 1. Charger les données (Note : on ne passe plus le séparateur en argument)
+    df_initial = charger_donnees(NOM_DU_FICHIER)
     
     # 2. Préparer la liste des employés uniques
     liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
@@ -144,19 +151,3 @@ try:
         )
         
         st.subheader(f"Détail des services pour {employe_selectionne}")
-        
-        # Affichage du tableau de planning
-        st.dataframe(
-            df_resultat[['SEMAINE ET JOUR', COL_DEBUT, COL_FIN, 'Durée du service']],
-            use_container_width=True,
-            column_config={
-                "SEMAINE ET JOUR": st.column_config.Column("Semaine et Jour", width="large"),
-                COL_DEBUT: st.column_config.Column("Début"),
-                COL_FIN: st.column_config.Column("Fin"),
-                "Durée du service": st.column_config.DurationColumn("Durée", format="HH:mm")
-            },
-            hide_index=True
-        )
-        
-except Exception as e:
-    st.error(f"Une erreur inattendue est survenue au lancement : {e}")
