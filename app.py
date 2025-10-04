@@ -2,13 +2,12 @@ import pandas as pd
 import streamlit as st
 import datetime
 
-# --- CONFIGURATION DU FICHIER ---
-# Nom exact de votre fichier CSV
-NOM_DU_FICHIER = "planning.xlsx"
-# Le séparateur est souvent la virgule (,) pour ce type de fichier
+# --- CONFIGURATION DU FICHIER CORRIGÉE ---
+# Le nom exact de votre fichier est : 'planning.xlsx - De la S41 à la S52.csv'
+NOM_DU_FICHIER = "planning.xlsx - De la S41 à la S52.csv"
 SEPARATEUR_CSV = ',' 
 
-# Noms des colonnes (headers) de votre fichier - DOIVENT CORRESPONDRE
+# Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
 COL_SEMAINE = 'SEMAINE'
 COL_JOUR = 'JOUR'
@@ -34,7 +33,7 @@ def calculer_heures_travaillees(df_planning):
         def calculer_duree(row):
             duree = row['Duree_Fin'] - row['Duree_Debut']
             
-            # Gérer les services qui passent minuit (la durée est négative et doit être augmentée de 24h)
+            # Gérer les services qui passent minuit
             if duree < pd.Timedelta(0):
                 duree += pd.Timedelta(days=1)
                 
@@ -54,56 +53,17 @@ def calculer_heures_travaillees(df_planning):
         
     except Exception as e:
         # En cas d'erreur de formatage (si les heures ne sont pas HH:MM:SS)
+        # st.warning(f"Avertissement: Erreur de calcul des heures. Vérifiez le format. Détails: {e}")
         return df_planning, "Erreur de calcul"
-    import streamlit as st
-import pandas as pd
 
-# Nom de fichier exact
-FILE_NAME = 'planning.xlsx - De la S41 à la S52.csv'
-
-st.set_page_config(layout="wide", page_title="Planification Vendeurs")
-st.title("Tableau de bord de Planification")
-
-try:
-    # 🔑 CORRECTION DE L'ENCODAGE: On passe l'argument 'encoding' à 'latin-1'
-    df = pd.read_csv(FILE_NAME, encoding='latin-1')
-    
-    # Nettoyage des noms de colonnes
-    df.columns = df.columns.str.strip()
-    
-    st.success(f"Fichier '{FILE_NAME}' chargé avec succès en utilisant l'encodage latin-1 !")
-    
-    # Affichage des premières lignes pour confirmation
-    st.dataframe(df.head())
-    
-    # ... votre code Streamlit continue ici ...
-    
-except FileNotFoundError:
-    st.error(f"""
-    **ERREUR : Fichier non trouvé.**
-    Le fichier nommé `{FILE_NAME}` est introuvable.
-    """)
-except UnicodeDecodeError as e:
-    st.error(f"""
-    **ERREUR : Problème d'encodage (Unicode Decode Error).**
-    Le fichier CSV n'a pas pu être lu. Tentez d'utiliser un autre encodage si 'latin-1' ne fonctionne pas (ex: 'windows-1252').
-    Détails: {e}
-    """)
-except Exception as e:
-    st.error(f"Une autre erreur est survenue lors du traitement du fichier : {e}")
-
-# --- INTERFACE STREAMLIT PRINCIPALE ---
-
-st.set_page_config(page_title="Planning Employé", layout="wide")
-st.title("🕒 Application de Consultation de Planning")
-st.markdown("---")
-
+# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRIGÉE) ---
 
 @st.cache_data
 def charger_donnees(fichier, separateur):
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
-        df = pd.read_csv(fichier, sep=separateur, skipinitialspace=True)
+        # 🔑 CORRECTION PRINCIPALE : Ajout de l'encodage 'latin-1' pour gérer les caractères spéciaux
+        df = pd.read_csv(fichier, sep=separateur, encoding='latin-1', skipinitialspace=True)
         
         # Nettoyage des noms de colonnes et des données (gestion des espaces)
         df.columns = df.columns.str.strip()
@@ -113,17 +73,43 @@ def charger_donnees(fichier, separateur):
                 
         # Supprimer les lignes qui n'ont aucune donnée
         df = df.dropna(how='all')
-                
+            
         # Créer une colonne pour l'affichage : "S41 - LUNDI"
         df['SEMAINE ET JOUR'] = df[COL_SEMAINE] + ' - ' + df[COL_JOUR]
         
         return df
-    except Exception as e:
-        st.error(f"Impossible de charger le fichier CSV. Vérifiez le nom du fichier et le séparateur. Détails: {e}")
+    
+    except FileNotFoundError:
+        st.error(f"""
+        **ERREUR CRITIQUE : Fichier non trouvé.**
+        Le fichier de données nommé `{fichier}` doit être dans le même répertoire que `app.py` sur GitHub.
+        """)
         st.stop()
         
+    except UnicodeDecodeError as e:
+        st.error(f"""
+        **ERREUR D'ENCODAGE : Caractères illisibles.**
+        L'application ne peut pas lire le fichier avec l'encodage 'latin-1'.
+        Si l'erreur persiste, changez 'latin-1' par 'windows-1252' dans la fonction `charger_donnees`.
+        Détails : {e}
+        """)
+        st.stop()
+        
+    except Exception as e:
+        st.error(f"Impossible de charger le fichier CSV. Vérifiez les constantes de colonnes. Détails: {e}")
+        st.stop()
+
+
+# --- INTERFACE STREAMLIT PRINCIPALE ---
+
+st.set_page_config(page_title="Planning Employé", layout="wide")
+st.title("🕒 Application de Consultation de Planning")
+st.markdown("---")
+
+
 try:
     # 1. Charger les données (Point de départ)
+    # L'encodage est maintenant géré à l'intérieur de cette fonction.
     df_initial = charger_donnees(NOM_DU_FICHIER, SEPARATEUR_CSV)
     
     # 2. Préparer la liste des employés uniques
@@ -171,8 +157,7 @@ try:
             },
             hide_index=True
         )
-    
+        
 except Exception as e:
-    st.error(f"Le lancement a échoué. Assurez-vous que Conda est activé et que les fichiers sont au bon endroit. Erreur générale: {e}")
-
-# --- FIN DU CODE ---
+    # Cette erreur ne devrait s'afficher que s'il y a un problème Streamlit ou Pandas très général
+    st.error(f"Une erreur inattendue est survenue : {e}")
