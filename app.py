@@ -2,13 +2,14 @@ import pandas as pd
 import streamlit as st
 import datetime
 import csv 
+import re # Nécessaire pour l'expression régulière du séparateur
 
 # --- CONFIGURATION DU FICHIER ---
 # Nom exact du fichier
 NOM_DU_FICHIER = "planning.xlsx"
 
-# Séparateur. On utilise la virgule dans le read_csv.
-SEPARATEUR_CSV = ',' 
+# Séparateur REGEX : Il gère la virgule entourée d'espaces (le seul moyen fiable)
+SEPARATEUR_REGEX = r'\s*,\s*' 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
@@ -27,7 +28,6 @@ def calculer_heures_travaillees(df_planning):
     df_planning = df_planning.fillna({COL_DEBUT: '00:00:00', COL_FIN: '00:00:00'})
 
     try:
-        # Convertir les colonnes d'heures en objets TimeDelta (durée)
         df_planning['Duree_Debut'] = pd.to_timedelta(df_planning[COL_DEBUT].astype(str).str.strip())
         df_planning['Duree_Fin'] = pd.to_timedelta(df_planning[COL_FIN].astype(str).str.strip())
         
@@ -51,20 +51,19 @@ def calculer_heures_travaillees(df_planning):
         return df_planning, "Erreur de calcul"
 
 
-# --- FONCTION DE CHARGEMENT DES DONNÉES ---
+# --- FONCTION DE CHARGEMENT DES DONNÉES (CORRIGÉE DÉFINITIVE) ---
 
 @st.cache_data
 def charger_donnees(fichier):
     """Charge le fichier CSV une seule fois et nettoie les données."""
     try:
-        # Correction : sep=',' + quoting=csv.QUOTE_NONE + skipinitialspace=True pour la robustesse
+        # 🔑 CORRECTION FINALE : Utilisation de la REGEX comme seul séparateur pour gérer les espaces
         df = pd.read_csv(
             fichier, 
-            sep=',', 
+            sep=SEPARATEUR_REGEX, # Utilise la Regex r'\s*,\s*'
             encoding='latin-1', 
-            engine='python', 
-            skipinitialspace=True, 
-            quoting=csv.QUOTE_NONE
+            engine='python' # Obligatoire pour la Regex
+            # Suppression des autres arguments qui causent des conflits (skipinitialspace, quoting)
         )
         
         # Nettoyage des noms de colonnes et des données
