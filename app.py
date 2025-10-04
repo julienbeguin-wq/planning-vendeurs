@@ -20,6 +20,7 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 def calculer_heures_travaillees(df_planning):
     """Calcule le total des heures travaillées et la durée par service."""
     
+    # Remplissage initial pour éviter les erreurs de conversion au format HH:MM:SS
     df_planning = df_planning.fillna({COL_DEBUT: '00:00:00', COL_FIN: '00:00:00'})
 
     try:
@@ -50,6 +51,10 @@ def calculer_heures_travaillees(df_planning):
 
         df_planning['Durée du service'] = df_planning.apply(calculer_duree, axis=1)
         
+        # 🔑 CORRECTION : Convertir explicitement 'Durée du service' en Timedelta avant la comparaison/somme
+        df_planning['Durée du service'] = pd.to_timedelta(df_planning['Durée du service'], errors='coerce')
+        
+        # Filtrer et sommer les durées valides
         total_duree = df_planning[df_planning['Durée du service'] > pd.Timedelta(0)]['Durée du service'].sum()
         
         secondes_totales = total_duree.total_seconds()
@@ -58,8 +63,9 @@ def calculer_heures_travaillees(df_planning):
         
         return df_planning, f"{heures}h {minutes}min"
         
-    except Exception:
-        return df_planning, "Erreur de calcul"
+    except Exception as e:
+        # En cas d'erreur irrécupérable dans le calcul, journaliser l'erreur et continuer
+        return df_planning, f"Erreur de calcul: {e}"
 
 
 # --- FONCTION DE CHARGEMENT DES DONNÉES (VERSION EXCEL) ---
@@ -134,9 +140,15 @@ try:
         df_resultat, total_heures_format = calculer_heures_travaillees(df_employe)
         
         # FIX ULTIME : Convertir la durée en chaîne formatée (HH:mm)
-        df_resultat['Durée du service (Affichage)'] = df_resultat['Durée du service'].apply(
-            lambda x: f"{int(x.total_seconds() // 3600):02d}:{int((x.total_seconds() % 3600) // 60):02d}" if x.total_seconds() > pd.Timedelta(0) else ""
-        )
+        # Gestion des valeurs non-Timedelta (NaN/NaT) qui peuvent survenir
+        def format_duration(x):
+            if pd.isna(x) or x.total_seconds() <= 0:
+                return ""
+            h = int(x.total_seconds() // 3600)
+            m = int((x.total_seconds() % 3600) // 60)
+            return f"{h:02d}:{m:02d}"
+            
+        df_resultat['Durée du service (Affichage)'] = df_resultat['Durée du service'].apply(format_duration)
         
         # --- AFFICHAGE PRINCIPAL ---
         
