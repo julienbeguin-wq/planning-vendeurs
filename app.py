@@ -632,7 +632,6 @@ else:
                 
                 st.markdown("""
                 **Légende :**
-                ⚪ Repos | 🟢 Aujourd'hui | 🟡 Anniversaire
                 """)
                 
     except Exception as e:
