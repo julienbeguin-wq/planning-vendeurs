@@ -21,6 +21,7 @@ COL_FIN = 'HEURE FIN'
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
 # --- CONFIGURATION D'AUTHENTIFICATION ---
+# Ces mots de passe sont hachés, assurez-vous qu'ils correspondent à vos utilisateurs
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] 
 
 config = {
@@ -49,7 +50,9 @@ config = {
 }
 
 # --- FONCTIONS (inchangées) ---
+
 def get_dates_for_week(week_str, year=2025):
+    # ... (fonction inchangée)
     MONTHS = {
         1: "janvier", 2: "février", 3: "mars", 4: "avril", 5: "mai", 6: "juin",
         7: "juillet", 8: "août", 9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre"
@@ -69,6 +72,7 @@ def get_dates_for_week(week_str, year=2025):
         return week_str
 
 def calculer_heures_travaillees(df_planning):
+    # ... (fonction inchangée)
     df_planning_calc = df_planning.copy()
     try:
         def to_time_str_for_calc(val):
@@ -107,7 +111,7 @@ def calculer_heures_travaillees(df_planning):
 
 @st.cache_data
 def charger_donnees(fichier):
-    """Charge le fichier (Excel ou CSV) et nettoie les données."""
+    # ... (fonction inchangée)
     try:
         df = pd.read_excel(fichier)
     except Exception:
@@ -149,8 +153,8 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 LIGNE 154 : Utilisation exclusive de l'argument nommé 'location' en 'unrendered'
-name, authentication_status, username = authenticator.login(location='unrendered')
+# 💥 LIGNE 154 : Appel minimaliste. On laisse la librairie utiliser ses valeurs par défaut.
+name, authentication_status, username = authenticator.login()
 
 
 # --- LOGIQUE POST-CONNEXION ---
@@ -255,10 +259,5 @@ elif st.session_state["authentication_status"] is False:
 
 elif st.session_state["authentication_status"] is None:
     # L'utilisateur n'a pas encore entré d'informations
-    st.markdown("<h1 style='text-align: center;'>Connexion</h1>", unsafe_allow_html=True)
-    
-    # Rendu manuel du formulaire stocké
-    if 'login_form' in st.session_state and st.session_state['login_form']:
-        st.markdown(st.session_state['login_form'], unsafe_allow_html=True)
-    
+    # Nous laissons l'appel par défaut gérer le rendu.
     st.warning('Veuillez entrer votre identifiant et mot de passe pour accéder.')
