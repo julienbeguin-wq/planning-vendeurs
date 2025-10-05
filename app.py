@@ -7,7 +7,11 @@ import os
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
-NOM_DU_FICHIER = "RePlannings1.2.xlsx"
+# NOTE IMPORTANTE : Changez le titre de l'onglet du navigateur ici !
+st.set_page_config(page_title="Planning CLICHY - Consultation", layout="wide")
+
+
+NOM_DU_FICHIER = "planningss.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -38,7 +42,7 @@ def formater_duree(td):
 
 
 def get_dates_for_week(week_str, year=2025, format_type='full'):
-    """Calcule la plage de dates pour la semaine."""
+    """Calcule la plage de dates pour la semaine (Année 2025 codée en dur)."""
     try:
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
@@ -61,6 +65,8 @@ def get_dates_for_week(week_str, year=2025, format_type='full'):
             return f"Semaine {week_str} : du {date_debut_str} au {date_fin_str}"
             
     except Exception as e:
+        # NOTE : L'erreur d'attribut 'isoweek' est souvent causée par un type de donnée incohérent,
+        # la gestion d'erreur dans le bloc try/except permet d'éviter un crash de l'app.
         return f"Erreur de calcul de date: {e}" if format_type == 'only_dates' else week_str
 
 def convertir_heure_en_timedelta(val):
@@ -167,7 +173,7 @@ if 'username' not in st.session_state:
 
 def login():
     """Fonction de gestion de la connexion."""
-    st.title("Connexion")
+    st.markdown("<h1 style='text-align: center;'>Connexion à l'application Planning</h1>", unsafe_allow_html=True)
     st.warning("Veuillez entrer votre identifiant et mot de passe pour accéder.")
 
     with st.form("login_form"):
@@ -182,11 +188,6 @@ def login():
                 st.rerun() 
             else:
                 st.error("Identifiant ou mot de passe incorrect.")
-
-# --- 4. INTERFACE STREAMLIT PRINCIPALE (ENGLOBÉE DANS L'AUTH) ---
-
-st.set_page_config(page_title="Planning Employé", layout="wide")
-
 
 # --- Démarrer le processus d'authentification ---
 
@@ -223,7 +224,7 @@ else:
 
         # 4.3 Barre latérale et menus déroulants
         
-        # A. MESSAGE DE BIENVENUE ET DÉCONNEXION
+        # MESSAGE DE BIENVENUE ET DÉCONNEXION
         st.sidebar.markdown(f"**👋 Bienvenue, {st.session_state['username'].title()}**")
         
         if st.sidebar.button("Déconnexion"):
@@ -232,7 +233,6 @@ else:
             st.rerun()
             
         st.sidebar.markdown("---")
-        st.sidebar.header("Sélections")
         
         # L'employé sélectionné est celui qui est connecté (pour la sécurité)
         employe_selectionne = st.session_state['username']
@@ -252,7 +252,7 @@ else:
         
         liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
 
-        # --- C. AFFICHAGE DE LA SYNTHÈSE GLOBALE DANS LA BARRE LATÉRALE ---
+        # --- SYNTHÈSE GLOBALE DANS LA BARRE LATÉRALE ---
         if not df_semaines_travaillees.empty:
             
             st.sidebar.subheader("Synthèse Annuelle")
@@ -274,9 +274,9 @@ else:
                 hide_index=True
             )
             st.sidebar.markdown("---")
-            st.sidebar.header("Détail Semaine") # Remettre un header avant le selectbox
+            st.sidebar.header("Détail Semaine") 
             
-        # -------------------------------------------------------------------
+        # -------------------------------------------------
 
 
         # Initialisation de la semaine pour l'affichage conditionnel
@@ -344,7 +344,7 @@ else:
 
                 st.subheader(f"Planning pour **{employe_selectionne.title()}**")
                 
-                # B. AFFICHAGE DU TOTAL EN MODE METRIC (Tableau de bord)
+                # AFFICHAGE DU TOTAL EN MODE METRIC
                 st.metric(
                     label=f"Total d'heures calculées pour la semaine {semaine_selectionnee_brute}", 
                     value=f"{total_heures_format}h"
@@ -364,4 +364,4 @@ else:
                 
     except Exception as e:
         # Affiche l'erreur si elle n'a pas été gérée plus tôt
-        st.error(f"Une erreur fatale s'est produite : {e}. Assurez-vous d'avoir sauvegardé votre fichier **app.py** et d'avoir relancé l'application.")
+        st.error(f"Une erreur fatale s'est produite : {e}.")
