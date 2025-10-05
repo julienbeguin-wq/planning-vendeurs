@@ -4,7 +4,8 @@ from datetime import date, timedelta, time
 import numpy as np
 import os 
 import calendar 
-import io # Ajout de la librairie pour la gestion des flux binaires (export)
+import io 
+import re # Ajout pour la recherche d'années dans les noms de semaines
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
@@ -57,12 +58,18 @@ def formater_duree(td):
     return f"{heures}h {minutes:02d}"
 
 
-def get_dates_for_week(week_str, year=2025, format_type='full'):
-    """Calcule la plage de dates pour la semaine (Année 2025 codée en dur)."""
+def get_dates_for_week(week_str, year, format_type='full'):
+    """Calcule la plage de dates pour la semaine, en utilisant l'année fournie."""
     try:
-        week_num = int(week_str.upper().replace('S', ''))
+        # Tente d'extraire le numéro de semaine. Exemple: S42 -> 42
+        week_match = re.search(r'S(\d+)', week_str.upper())
+        if not week_match:
+            # Gère le cas où la colonne SEMAINE contient autre chose que SXX
+            return week_str if format_type == 'full' else "Erreur SEMAINE"
+            
+        week_num = int(week_match.group(1))
+        
     except ValueError:
-        # Si le format n'est pas SXX
         return week_str if format_type == 'full' else "Erreur SEMAINE"
     
     try:
@@ -80,11 +87,11 @@ def get_dates_for_week(week_str, year=2025, format_type='full'):
         date_fin_str = date_fin.strftime("%d/%m/%y")
 
         if format_type == 'full':
-            return f"{week_str} : du {date_debut_str} au {date_fin_str}"
+            return f"{week_str} ({year}): du {date_debut_str} au {date_fin_str}"
         elif format_type == 'start_date':
              return date_debut # Retourne l'objet date pour le calcul des jours
         else: # only_dates
-            return f"Semaine {week_str} : du {date_debut_str} au {date_fin_str}"
+            return f"Semaine {week_str} ({year}) : du {date_debut_str} au {date_fin_str}"
             
     except Exception as e:
         return f"Erreur de calcul de date: {e}" if format_type == 'only_dates' else week_str
@@ -120,7 +127,7 @@ def calculer_duree_brute(row):
 
 def calculer_duree_service(row):
     """Calcule la durée de travail nette pour une ligne (avec 1h de pause si > 1h)."""
-    duree = row['Duree_Brute'] # Utilise la durée brute calculée précédemment
+    duree = row['Duree_Brute'] 
         
     if duree > pd.Timedelta(hours=1): 
         duree -= pd.Timedelta(hours=1)
@@ -135,12 +142,11 @@ def calculer_heures_travaillees(df_planning):
     df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
     df_planning_calc['Duree_Fin'] = df_planning_calc[COL_FIN].apply(convertir_heure_en_timedelta)
     
-    # Nouvelle colonne pour la durée brute
     df_planning_calc['Duree_Brute'] = df_planning_calc.apply(calculer_duree_brute, axis=1)
     
     df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree_service, axis=1)
     df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
-    df_planning['Duree_Brute'] = df_planning_calc['Duree_Brute'] # Ajout de la durée brute au DF principal
+    df_planning['Duree_Brute'] = df_planning_calc['Duree_Brute'] 
 
     durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
     total_duree = durees_positives.sum()
@@ -148,6 +154,19 @@ def calculer_heures_travaillees(df_planning):
     total_heures_format = formater_duree(total_duree).replace("min", "") 
     
     return df_planning, total_heures_format
+
+# Ajout d'une fonction pour déduire l'année de la colonne SEMAINE (si le format est SXX-YY)
+def extraire_annee(semaine_str):
+    """Essaie d'extraire l'année (YY) du format SXX-YY ou retourne une année par défaut."""
+    if isinstance(semaine_str, str):
+        # Cherche le format SXX-YY (ex: S42-25)
+        match = re.search(r'-(\d{2})$', semaine_str)
+        if match:
+            # Convertit le format court (25) en long (2025)
+            return 2000 + int(match.group(1))
+            
+    # Si l'année n'est pas explicite, on suppose 2025 (pour la compatibilité arrière)
+    return date.today().year
 
 @st.cache_data
 def charger_donnees(fichier):
@@ -179,6 +198,9 @@ def charger_donnees(fichier):
     df = df.dropna(how='all')
     df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
     df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
+    
+    # NOUVEAU : Tentative de déterminer l'année de chaque semaine
+    df['ANNEE'] = df[COL_SEMAINE].apply(extraire_annee)
 
     df_calc = df.copy()
     df_calc['Duree_Debut'] = df_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
@@ -188,10 +210,10 @@ def charger_donnees(fichier):
     df_calc['Duree_Brute'] = df_calc.apply(calculer_duree_brute, axis=1)
     df_calc['Durée_Service_Total'] = df_calc.apply(calculer_duree_service, axis=1)
 
-    df_totaux = df_calc.groupby([COL_EMPLOYE, COL_SEMAINE])['Durée_Service_Total'].sum().reset_index()
+    df_totaux = df_calc.groupby([COL_EMPLOYE, COL_SEMAINE, 'ANNEE'])['Durée_Service_Total'].sum().reset_index()
     df_totaux = df_totaux.rename(columns={'Durée_Service_Total': 'TEMPS_TOTAL_SEMAINE'})
     
-    df = pd.merge(df, df_totaux, on=[COL_EMPLOYE, COL_SEMAINE], how='left')
+    df = pd.merge(df, df_totaux, on=[COL_EMPLOYE, COL_SEMAINE, 'ANNEE'], how='left')
     df['TEMPS_TOTAL_SEMAINE'] = df['TEMPS_TOTAL_SEMAINE'].fillna(pd.Timedelta(0))
     
     return df
@@ -269,7 +291,7 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     return styles
     
 # --- NOUVELLE FONCTION D'EXPORT ---
-def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_selectionnee_brute):
+def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_selectionnee_brute, annee_selectionnee):
     """Crée un buffer Excel en mémoire pour le téléchargement."""
     output = io.BytesIO()
     
@@ -291,7 +313,7 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
         worksheet.set_column('D:E', 20, duration_format) # Pauses, Heures Net
         
         # Écriture des informations de synthèse en haut
-        worksheet.write('A1', f"Planning Hebdomadaire")
+        worksheet.write('A1', f"Planning Hebdomadaire {annee_selectionnee}")
         worksheet.write('A2', f"Employé: {employe_selectionne.title()}")
         worksheet.write('A3', f"Semaine: {semaine_selectionnee_brute}")
         worksheet.write('A4', f"Total d'heures nettes: {total_heures_format}h")
@@ -363,8 +385,24 @@ else:
 
         df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         
-        df_semaines_travaillees = df_employe_filtre[
-            df_employe_filtre['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)
+        # --- NOUVEAU : SÉLECTION DE L'ANNÉE ---
+        st.sidebar.header("Période")
+        
+        # Déterminer les années disponibles dans le fichier
+        annees_disponibles = sorted(df_employe_filtre['ANNEE'].unique().tolist(), reverse=True)
+        if not annees_disponibles:
+             annees_disponibles = [date.today().year] # Année par défaut
+
+        annee_selectionnee = st.sidebar.selectbox(
+            'Année du Planning',
+            annees_disponibles,
+            index=0 # Par défaut l'année la plus récente
+        )
+        
+        df_employe_annee = df_employe_filtre[df_employe_filtre['ANNEE'] == annee_selectionnee].copy()
+
+        df_semaines_travaillees = df_employe_annee[
+            df_employe_annee['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)
         ].drop_duplicates(subset=[COL_SEMAINE])
         
         liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
@@ -372,17 +410,19 @@ else:
         
         if not liste_semaines_brutes:
             st.markdown("---")
-            st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}**.")
+            st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}** en {annee_selectionnee}.")
             
         else:
-            liste_semaines_formatees = [get_dates_for_week(s, format_type='full') for s in liste_semaines_brutes]
+            # Note: La fonction get_dates_for_week utilise maintenant l'année sélectionnée
+            liste_semaines_formatees = [get_dates_for_week(s, annee_selectionnee, format_type='full') for s in liste_semaines_brutes]
             semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
             
             # --- SÉLECTION AUTOMATIQUE DE LA SEMAINE ACTUELLE ---
-            semaine_actuelle_num = date.today().isocalendar()[1]
+            semaine_actuelle_num = aujourdhui.isocalendar()[1]
             semaine_actuelle_brute = f"S{semaine_actuelle_num:02d}" 
             
             try:
+                # Tente de sélectionner la semaine actuelle si elle appartient à l'année sélectionnée
                 index_semaine_actuelle = liste_semaines_brutes.index(semaine_actuelle_brute)
             except ValueError:
                 index_semaine_actuelle = 0
@@ -402,7 +442,7 @@ else:
             
             # --- 2. SYNTHÈSE GLOBALE ---
             if not df_semaines_travaillees.empty:
-                st.sidebar.subheader("Synthèse Annuelle")
+                st.sidebar.subheader(f"Synthèse {annee_selectionnee}")
                 df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
                 df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=True) 
                 
@@ -427,20 +467,21 @@ else:
             # 4.4 Affichage du planning
             if employe_selectionne and semaine_selectionnee_brute:
                 
-                # Récupérer la date de début de semaine pour la coloration conditionnelle
-                date_debut_semaine = get_dates_for_week(semaine_selectionnee_brute, format_type='start_date')
+                # Récupérer la date de début de semaine pour la coloration conditionnelle (utilise la nouvelle fonction avec l'année)
+                date_debut_semaine = get_dates_for_week(semaine_selectionnee_brute, annee_selectionnee, format_type='start_date')
                 
-                dates_pour_affichage = get_dates_for_week(semaine_selectionnee_brute, format_type='only_dates')
+                dates_pour_affichage = get_dates_for_week(semaine_selectionnee_brute, annee_selectionnee, format_type='only_dates')
                 st.markdown(f"<h3 style='text-align: center;'>{dates_pour_affichage}</h3>", unsafe_allow_html=True)
                 st.markdown("---")
                 
-                df_filtre = df_employe_filtre[df_employe_filtre[COL_SEMAINE] == semaine_selectionnee_brute].copy()
+                # Filtrage supplémentaire sur l'année pour être sûr
+                df_filtre = df_employe_annee[df_employe_annee[COL_SEMAINE] == semaine_selectionnee_brute].copy()
 
-                if semaine_selectionnee_brute == 'S52':
+                if semaine_selectionnee_brute == 'S52' and annee_selectionnee == 2025:
                     df_filtre_avant = len(df_filtre)
                     df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
                     if len(df_filtre) < df_filtre_avant:
-                        st.info(f"Note: Le **Jeudi** de la semaine S52 a été retiré (Jour de Noël).")
+                        st.info(f"Note: Le **Jeudi** de la semaine S52 a été retiré (Jour de Noël 2025).")
 
                 df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
                 df_filtre = df_filtre.sort_values(by=[COL_JOUR])
@@ -478,7 +519,7 @@ else:
                 st.subheader(f"Planning pour **{employe_selectionne.title()}**")
                 
                 st.metric(
-                    label=f"Total d'heures calculées pour la semaine {semaine_selectionnee_brute}", 
+                    label=f"Total d'heures calculées pour la semaine {semaine_selectionnee_brute} ({annee_selectionnee})", 
                     value=f"{total_heures_format}h"
                 )
                 
@@ -490,13 +531,14 @@ else:
                     df_resultat, 
                     total_heures_format, 
                     employe_selectionne, 
-                    semaine_selectionnee_brute
+                    semaine_selectionnee_brute,
+                    annee_selectionnee
                 )
                 
                 st.download_button(
                     label="📥 Télécharger le planning (Excel)",
                     data=excel_buffer,
-                    file_name=f"Planning_{employe_selectionne.title()}_{semaine_selectionnee_brute}.xlsx",
+                    file_name=f"Planning_{employe_selectionne.title()}_{semaine_selectionnee_brute}_{annee_selectionnee}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     help="Télécharge le planning hebdomadaire dans un fichier Excel (.xlsx)."
                 )
@@ -535,5 +577,4 @@ else:
                 """)
                 
     except Exception as e:
-        # Affiche l'erreur si elle n'a pas été gérée plus tôt
         st.error(f"Une erreur fatale s'est produite : {e}.")
