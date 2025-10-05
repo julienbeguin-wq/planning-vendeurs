@@ -181,8 +181,8 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 LIGNE 186 CORRIGÉE : Utilisation de la syntaxe positionnelle standard AVEC AJOUT D'UNE CLÉ UNIQUE
-name, authentication_status, username = authenticator.login('Login', 'main', key='unique_login_key')
+# 💥 LIGNE 185 CORRIGÉE : Inversion des arguments pour tester la signature
+name, authentication_status, username = authenticator.login('main', 'Login')
 
 # --- LOGIQUE POST-CONNEXION ---
 
