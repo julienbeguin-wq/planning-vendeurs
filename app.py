@@ -4,6 +4,7 @@ from datetime import date, timedelta, time
 import numpy as np
 import io
 import os 
+# Il est crucial d'avoir xlsxwriter installé pour le bouton de téléchargement
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
@@ -17,7 +18,7 @@ st.set_page_config(
 )
 
 
-NOM_DU_FICHIER = "RePlannings1.2.xlsx"
+NOM_DU_FICHIER = "Replannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # LISTE DES ANNIVERSAIRES 🎂
@@ -138,7 +139,7 @@ def calculer_heures_travaillees(df_planning):
 def to_excel(df, employe, semaine):
     """Convertit un DataFrame en un objet BytesIO pour le téléchargement Excel."""
     output = io.BytesIO()
-    # Utilisation du moteur xlsxwriter car c'est la façon recommandée par Streamlit
+    # Utilisation du moteur xlsxwriter (nécessite 'pip install xlsxwriter')
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     
     # Prépare les données pour l'export 
@@ -152,20 +153,21 @@ def to_excel(df, employe, semaine):
     })
     
     # Sélectionne les colonnes pour l'export
-    # Ajout de la durée nette et du statut pour l'export
     df_final = df_export[['Jour', 'Début', 'Fin', 'Durée (net)', 'Statut']].copy()
 
     # Formate la durée nette pour l'affichage dans Excel
     df_final['Durée (net)'] = df_final['Durée (net)'].apply(formater_duree)
 
     # Écrit le DataFrame dans l'objet Excel
-    df_final.to_excel(writer, index=False, sheet_name=f"Planning {employe}")
+    # NOM DE FEUILLE SIMPLIFIÉ POUR ÉVITER LES ERREURS SYSTÈME (comme rencontrées sur Mac)
+    df_final.to_excel(writer, index=False, sheet_name="Planning_Semaine") 
     
     # Sauvegarde
     writer.close()
     
     # Retourne le contenu du fichier
     return output.getvalue()
+
 
 @st.cache_data
 def charger_donnees(fichier):
@@ -446,7 +448,7 @@ else:
                     value=f"{total_heures_format}h"
                 )
                 
-                # NOUVEAU CODE : BOUTON DE TÉLÉCHARGEMENT
+                # BOUTON DE TÉLÉCHARGEMENT
                 excel_data = to_excel(df_resultat, employe_selectionne, semaine_selectionnee_brute)
                 
                 st.download_button(
@@ -456,7 +458,6 @@ else:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
-                # FIN NOUVEAU CODE
                 
                 st.markdown("---")
                 
