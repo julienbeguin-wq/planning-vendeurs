@@ -7,11 +7,11 @@ import os
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
-# NOTE IMPORTANTE : Changez le titre de l'onglet du navigateur ici !
+# TITRE DE L'ONGLET DU NAVIGATEUR
 st.set_page_config(page_title="Planning CLICHY - Consultation", layout="wide")
 
 
-NOM_DU_FICHIER = "planningss.xlsx"
+NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -49,9 +49,12 @@ def get_dates_for_week(week_str, year=2025, format_type='full'):
         return week_str if format_type == 'full' else "Erreur SEMAINE (pas un format SXX)"
     
     try:
+        # Nous prenons le 4 janvier comme point de référence pour le calcul
         d = date(year, 1, 4) 
         
+        # isocalendar()[1] donne le numéro de semaine ISO
         iso_week_of_jan_4 = d.isocalendar()[1] 
+        # Déplace le point de référence au début de la semaine souhaitée
         date_debut = d + timedelta(days=(week_num - iso_week_of_jan_4) * 7)
         
         date_fin = date_debut + timedelta(days=6)
@@ -65,8 +68,6 @@ def get_dates_for_week(week_str, year=2025, format_type='full'):
             return f"Semaine {week_str} : du {date_debut_str} au {date_fin_str}"
             
     except Exception as e:
-        # NOTE : L'erreur d'attribut 'isoweek' est souvent causée par un type de donnée incohérent,
-        # la gestion d'erreur dans le bloc try/except permet d'éviter un crash de l'app.
         return f"Erreur de calcul de date: {e}" if format_type == 'only_dates' else week_str
 
 def convertir_heure_en_timedelta(val):
@@ -245,40 +246,13 @@ else:
         # Filtrer les semaines travaillées pour l'employé sélectionné
         df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         
-        # Utilisation de la colonne TEMPS_TOTAL_SEMAINE déjà calculée dans charger_donnees
         df_semaines_travaillees = df_employe_filtre[
             df_employe_filtre['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)
         ].drop_duplicates(subset=[COL_SEMAINE])
         
         liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
 
-        # --- SYNTHÈSE GLOBALE DANS LA BARRE LATÉRALE ---
-        if not df_semaines_travaillees.empty:
-            
-            st.sidebar.subheader("Synthèse Annuelle")
-            
-            # Créer le tableau de synthèse
-            df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
-            df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False)
-            
-            # Formater la colonne des totaux pour l'affichage
-            df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
-            
-            st.sidebar.dataframe(
-                df_synthese[[COL_SEMAINE, 'Total Heures']],
-                use_container_width=True,
-                column_config={
-                    COL_SEMAINE: st.column_config.Column("Semaine", width="small"),
-                    "Total Heures": st.column_config.Column("Total (net)", width="small"),
-                },
-                hide_index=True
-            )
-            st.sidebar.markdown("---")
-            st.sidebar.header("Détail Semaine") 
-            
-        # -------------------------------------------------
-
-
+        
         # Initialisation de la semaine pour l'affichage conditionnel
         semaine_selectionnee_brute = None
         
@@ -291,12 +265,44 @@ else:
             liste_semaines_formatees = [get_dates_for_week(s, format_type='full') for s in liste_semaines_brutes]
             semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
             
+            
+            # --- 1. DÉTAIL SEMAINE (Sélection) EN PREMIER ---
+            st.sidebar.header("Détail Semaine") 
+            
+            # On cherche l'indice de la semaine la plus récente pour la présélection
             semaine_selectionnee_formattee = st.sidebar.selectbox(
-                f'Sélectionnez la semaine pour {employe_selectionne}', 
+                'Sélectionnez la semaine', 
                 liste_semaines_formatees
             )
             
             semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
+            st.sidebar.markdown("---")
+            
+            
+            # --- 2. SYNTHÈSE GLOBALE EN SECOND ---
+            if not df_semaines_travaillees.empty:
+                
+                st.sidebar.subheader("Synthèse Annuelle")
+                
+                # Créer le tableau de synthèse
+                df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
+                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False)
+                
+                # Formater la colonne des totaux pour l'affichage
+                df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
+                
+                st.sidebar.dataframe(
+                    df_synthese[[COL_SEMAINE, 'Total Heures']],
+                    use_container_width=True,
+                    column_config={
+                        COL_SEMAINE: st.column_config.Column("Semaine", width="small"),
+                        "Total Heures": st.column_config.Column("Total (net)", width="small"),
+                    },
+                    hide_index=True
+                )
+                st.sidebar.markdown("---")
+            
+            # -------------------------------------------------
 
             # 4.4 Affichage du planning
             if employe_selectionne and semaine_selectionnee_brute:
