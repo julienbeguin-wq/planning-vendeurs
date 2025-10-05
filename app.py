@@ -3,7 +3,7 @@ import streamlit as st
 from datetime import date, timedelta, time
 import numpy as np
 import os 
-import calendar # Nouveau pour aider à trouver le jour de la semaine
+import calendar 
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
@@ -212,17 +212,20 @@ def login():
             else:
                 st.error("Identifiant ou mot de passe incorrect.")
 
-# --- NOUVELLE FONCTION DE STYLISATION ---
+# --- NOUVELLE FONCTION DE STYLISATION (MISE À JOUR) ---
 
 def appliquer_style(row, date_debut_semaine, employe_connecte):
     """Applique une couleur de fond à la ligne en fonction du statut (Repos, École, Anniversaire)."""
     styles = [''] * len(row) # Styles par défaut (vide)
     
-    statut = row['Statut']
+    # La colonne 'Statut' est la dernière du DataFrame d'affichage
+    statut = row.iloc[-1] 
     
     # 1. Calculer la date complète du jour de la ligne
     try:
-        jour_index = ORDRE_JOURS.index(row[COL_JOUR]) # 0=LUNDI, 6=DIMANCHE
+        # Trouver l'index du jour dans la liste ORDRE_JOURS (COL_JOUR est la première colonne)
+        jour_str = row.iloc[0] 
+        jour_index = ORDRE_JOURS.index(jour_str) 
         date_ligne = date_debut_semaine + timedelta(days=jour_index)
     except Exception:
         # Si le nom du jour est invalide, ne rien colorer
@@ -237,7 +240,7 @@ def appliquer_style(row, date_debut_semaine, employe_connecte):
             # Jaune clair
             return ['background-color: #FFFF99'] * len(row) 
             
-    # Aujourd'hui (Peut être combiné avec d'autres styles mais ici on le met en évidence)
+    # Aujourd'hui 🟢
     if date_ligne == date.today():
          # Vert clair/eau
         return ['background-color: #CCFFCC'] * len(row) 
@@ -293,6 +296,7 @@ else:
         # LOGIQUE D'ANNIVERSAIRE (Affichage en barre latérale)
         aujourdhui = date.today()
         
+        # J'utilise l'information enregistrée (votre anniversaire est le 18 octobre) pour vérifier l'affichage
         if employe_connecte in ANNIVERSAIRES:
             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
             
@@ -426,10 +430,10 @@ else:
                 
                 st.markdown("---")
                 
-                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE ---
+                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE (CORRIGÉ) ---
                 
-                # Colonnes à afficher
-                df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]].copy()
+                # Colonnes à afficher, INCLUANT LA COLONNE 'Statut' pour le style
+                df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Statut']].copy()
 
                 # Appliquer la fonction de style LIGNE PAR LIGNE
                 styled_df = df_affichage.style.apply(
@@ -437,7 +441,7 @@ else:
                     axis=1,
                     date_debut_semaine=date_debut_semaine,
                     employe_connecte=employe_selectionne
-                )
+                ).hide(subset=['Statut'], axis="columns") # Cache la colonne 'Statut' pour l'utilisateur
                 
                 st.dataframe(
                     styled_df, 
@@ -456,4 +460,5 @@ else:
                 """)
                 
     except Exception as e:
+        # Affiche l'erreur si elle n'a pas été gérée plus tôt
         st.error(f"Une erreur fatale s'est produite : {e}.")
