@@ -4,6 +4,7 @@ from datetime import date, timedelta, time
 import numpy as np
 import os 
 import calendar 
+import io # Ajout de la librairie pour la gestion des flux binaires (export)
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
@@ -17,7 +18,7 @@ st.set_page_config(
 )
 
 
-NOM_DU_FICHIER = "RePlannings1.2.xlsx"
+NOM_DU_FICHIER = "RePlaannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # LISTE DES ANNIVERSAIRES 🎂
@@ -246,7 +247,6 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     # Anniversaire 🥳
     if employe_connecte in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
-        # Utilise l'information enregistrée (votre anniversaire est le 18 octobre)
         if date_ligne.month == mois_anniv and date_ligne.day == jour_anniv:
             # Jaune clair
             return ['background-color: #FFFF99'] * len(row) 
@@ -267,6 +267,41 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
         return ['background-color: #DDEEFF'] * len(row) 
     
     return styles
+    
+# --- NOUVELLE FONCTION D'EXPORT ---
+def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_selectionnee_brute):
+    """Crée un buffer Excel en mémoire pour le téléchargement."""
+    output = io.BytesIO()
+    
+    # Création du Dataframe à exporter
+    df_export = df[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite', 'Durée du service']].copy()
+    df_export.columns = ['Jour', 'Début', 'Fin', 'Pause Déduite (Net)', 'Heures Net (Déduites)']
+    
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_export.to_excel(writer, sheet_name='Planning', index=False, startrow=4)
+        workbook = writer.book
+        worksheet = writer.sheets['Planning']
+        
+        # Format des colonnes heure/durée
+        time_format = workbook.add_format({'num_format': 'hh:mm'})
+        duration_format = workbook.add_format({'num_format': '[h]:mm'})
+        
+        # Appliquer les formats
+        worksheet.set_column('B:C', 15, time_format)  # Début, Fin
+        worksheet.set_column('D:E', 20, duration_format) # Pauses, Heures Net
+        
+        # Écriture des informations de synthèse en haut
+        worksheet.write('A1', f"Planning Hebdomadaire")
+        worksheet.write('A2', f"Employé: {employe_selectionne.title()}")
+        worksheet.write('A3', f"Semaine: {semaine_selectionnee_brute}")
+        worksheet.write('A4', f"Total d'heures nettes: {total_heures_format}h")
+        
+        # Écriture de la note de pause
+        worksheet.write('A10', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
+        
+    output.seek(0)
+    return output
+
 
 # --- Démarrer le processus d'authentification ---
 
@@ -447,14 +482,30 @@ else:
                     value=f"{total_heures_format}h"
                 )
                 
-                # --- PHRASE AJOUTÉE ICI ---
-                st.markdown("**Une heure de pause méridienne est déduite chaque jour travaillé.**")
+                st.markdown("**Une heure de pause méridienne est déduite chaque jour de service (si la durée brute dépasse 1h).**")
                 
+                # --- NOUVEAU : BOUTON DE TÉLÉCHARGEMENT ---
+                
+                excel_buffer = to_excel_buffer(
+                    df_resultat, 
+                    total_heures_format, 
+                    employe_selectionne, 
+                    semaine_selectionnee_brute
+                )
+                
+                st.download_button(
+                    label="📥 Télécharger le planning (Excel)",
+                    data=excel_buffer,
+                    file_name=f"Planning_{employe_selectionne.title()}_{semaine_selectionnee_brute}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Télécharge le planning hebdomadaire dans un fichier Excel (.xlsx)."
+                )
+
                 st.markdown("---")
                 
-                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE (V10.3) ---
+                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE ---
                 
-                # Colonnes à afficher (inclut la nouvelle colonne Pause Déduite, exclut Statut)
+                # Colonnes à afficher
                 df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite']].copy()
 
                 # Appliquer la fonction de style LIGNE PAR LIGNE

@@ -3,4 +3,5 @@ pandas
 openpyxl 
 PyYAML
 streamlit-authenticator>=0.4.2
-passlib 
+passlib
+openpyxl
