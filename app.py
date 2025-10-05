@@ -26,7 +26,7 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 # Vos mots de passe clairs étaient : ['password123', 'autre_mdp']
 
 # 2. MOTS DE PASSE CRYPTÉS (HASHÉS) - COPIÉS DIRECTEMENT (CORRECTIF FINAL)
-# 🚨🚨 REMPLACEZ CE QUI SUIT PAR LES VALEURS OBTENUES À L'ÉTAPE 1 🚨🚨
+# 🚨🚨 REMPLACEZ CE QUI SUIT PAR LES VALEURS OBTENUES LORS DU HACHAGE LOCAL 🚨🚨
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] # ⬅️ COLLES TES VALEURS ICI
 
 config = {
@@ -181,7 +181,8 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-name, authentication_status, username = authenticator.login('Login', 'main')
+# 💥 LIGNE 184 CORRIGÉE
+name, authentication_status, username = authenticator.login('Login', location='main')
 
 # --- LOGIQUE POST-CONNEXION ---
 
