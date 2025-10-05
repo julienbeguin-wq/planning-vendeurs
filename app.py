@@ -74,7 +74,9 @@ def get_dates_for_week(week_str, year=2025):
         d = date(year, 1, 4) 
         date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
         date_fin = date_debut + timedelta(days=6)
-        
+
+# Ligne 76: def get_dates_for_week(week_str, year=2025):
+def get_dates_for_week(week_str, year=2025):
         date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
         date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
 
