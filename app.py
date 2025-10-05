@@ -382,8 +382,9 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
     output = io.BytesIO()
     
     # Utilisation de la colonne 'Durée du service' qui doit exister
-    df_export = df[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite', 'Durée du service']].copy()
-    df_export.columns = ['Jour', 'Début', 'Fin', 'Pause Déduite (Net)', 'Heures Net (Déduites)']
+    # 'Pause Déduite' est supprimée ici
+    df_export = df[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']].copy()
+    df_export.columns = ['Jour', 'Début', 'Fin', 'Heures Net (Déduites)']
     
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_export.to_excel(writer, sheet_name='Planning', index=False, startrow=4)
@@ -394,7 +395,7 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
         duration_format = workbook.add_format({'num_format': '[h]:mm'})
         
         worksheet.set_column('B:C', 15, time_format)  
-        worksheet.set_column('D:E', 20, duration_format)
+        worksheet.set_column('D:D', 20, duration_format) # Ajusté car 'Pause Déduite' est enlevée
         
         worksheet.write('A1', f"Planning Hebdomadaire {annee_selectionnee}")
         worksheet.write('A2', f"Employé: {employe_selectionne.title()}")
@@ -527,27 +528,27 @@ else:
             )
             st.sidebar.markdown("---")
             
-            # --- SYNTHÈSE GLOBALE 
-            if not df_semaines_travaillees.empty:
-                st.sidebar.subheader(f"Synthèse {annee_selectionnee}")
-                df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
-                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=True) 
+            # --- SYNTHÈSE GLOBALE (BLOC ENTIÈREMENT SUPPRIMÉ ICI) ---
+            # if not df_semaines_travaillees.empty:
+            #     st.sidebar.subheader(f"Synthèse {annee_selectionnee}")
+            #     df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
+            #     df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=True) 
                 
-                df_synthese['Heures_Secondes'] = df_synthese['TEMPS_TOTAL_SEMAINE'].dt.total_seconds() / 3600
+            #     df_synthese['Heures_Secondes'] = df_synthese['TEMPS_TOTAL_SEMAINE'].dt.total_seconds() / 3600
                 
-                st.sidebar.bar_chart(df_synthese, x=COL_SEMAINE, y='Heures_Secondes', height=200)
-                st.sidebar.markdown("**Heures travaillées (net)**")
+            #     st.sidebar.bar_chart(df_synthese, x=COL_SEMAINE, y='Heures_Secondes', height=200)
+            #     st.sidebar.markdown("**Heures travaillées (net)**")
                 
-                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False) 
-                df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
+            #     df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False) 
+            #     df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
                 
-                st.sidebar.dataframe(
-                    df_synthese[[COL_SEMAINE, 'Total Heures']],
-                    use_container_width=True,
-                    column_config={"Total Heures": st.column_config.Column("Total (net)", width="small")},
-                    hide_index=True
-                )
-                st.sidebar.markdown("---")
+            #     st.sidebar.dataframe(
+            #         df_synthese[[COL_SEMAINE, 'Total Heures']],
+            #         use_container_width=True,
+            #         column_config={"Total Heures": st.column_config.Column("Total (net)", width="small")},
+            #         hide_index=True
+            #     )
+            #     st.sidebar.markdown("---")
             
             # -------------------------------------------------
 
@@ -573,85 +574,16 @@ else:
                 # Les colonnes Statut, Durée du service et Duree_Brute existent
                 
                 # Ajoute la colonne de Pause Déduite pour l'affichage/export
+                # Cette colonne sera toujours calculée en interne pour la logique, mais non affichée.
                 df_resultat['Pause Déduite'] = df_resultat.apply(
                     lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
                 )
                 
                 # --- VÉRIFICATION DES DONNÉES ET AFFICHAGE DES ALERTES (BLOC SUPPRIMÉ) ---
-                # NOTE : verifier_donnees est toujours appelé car il contient la logique de vérification
-                # mais le résultat n'est plus affiché.
                 verifier_donnees(df_resultat)
                 st.markdown("---")
                 
                 # ------------------------------------------------------------------
 
                 # Création du statut_map pour le stylage
-                statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
-
-                # Remplace l'affichage des heures par le statut si Repos/École
-                df_resultat[COL_DEBUT] = df_resultat.apply(
-                    lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
-                )
-                df_resultat[COL_FIN] = df_resultat.apply(
-                    lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
-                )
-
-                st.subheader(f"Planning pour **{employe_selectionne.title()}**")
-                
-                st.metric(
-                    label=f"Total d'heures calculées pour la semaine {semaine_selectionnee_brute} ({annee_selectionnee})", 
-                    value=f"{total_heures_format}h"
-                )
-                
-                st.markdown("**Une heure de pause méridienne est déduite chaque jour de service (si la durée brute dépasse 1h).**")
-                
-                excel_buffer = to_excel_buffer(
-                    df_resultat, 
-                    total_heures_format, 
-                    employe_selectionne, 
-                    semaine_selectionnee_brute,
-                    annee_selectionnee
-                )
-                
-                st.download_button(
-                    label="📥 Télécharger le planning (Excel)",
-                    data=excel_buffer,
-                    file_name=f"Planning_{employe_selectionne.title()}_{semaine_selectionnee_brute}_{annee_selectionnee}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    help="Télécharge le planning hebdomadaire dans un fichier Excel (.xlsx)."
-                )
-
-                st.markdown("---")
-                
-                # --- AFFICHAGE FINAL ---
-                
-                df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite']].copy()
-
-                styled_df = df_affichage.style.apply(
-                    appliquer_style,
-                    axis=1,
-                    date_debut_semaine=date_debut_semaine,
-                    employe_connecte=employe_selectionne,
-                    statut_map=statut_map 
-                )
-                
-                st.dataframe(
-                    styled_df, 
-                    use_container_width=True,
-                    column_config={
-                        COL_JOUR: st.column_config.Column("Jour", width="large"),
-                        COL_DEBUT: st.column_config.Column("Début / Statut"), 
-                        COL_FIN: st.column_config.Column("Fin"),
-                        'Pause Déduite': st.column_config.Column("Pause Déduite (Net)", width="small"),
-                    },
-                    hide_index=True
-                )
-                
-                st.markdown("""
-                **Légende :**
-                ⚪ Repos | 🟢 Aujourd'hui | 🟡 Anniversaire
-                """)
-                
-    except Exception as e:
-        # st.error(f"Une erreur fatale s'est produite : {e}.")
-        st.exception(e) # Affiche l'erreur complète pour le débogage
+                statut_map = df_resultat.set_
