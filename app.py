@@ -40,27 +40,34 @@ def get_dates_for_week(week_str, year=2025):
     except Exception:
         return week_str
 
+def convertir_heure_en_timedelta(val):
+    """Convertit diverses entrées d'heure (time, float Excel, str) en timedelta."""
+    if pd.isna(val) or val == "":
+        return pd.NaT
+    if isinstance(val, (time, pd.Timestamp)):
+        return pd.to_timedelta(str(val))
+    elif isinstance(val, (int, float)) and 0 <= val <= 1: 
+        # Gestion des formats Excel (fraction du jour)
+        total_seconds = val * 86400 
+        return pd.to_timedelta(total_seconds, unit='s')
+    try:
+        # Essayer de convertir la chaîne si elle est déjà formatée
+        return pd.to_timedelta(val)
+    except:
+        return pd.NaT
+
 def calculer_heures_travaillees(df_planning):
     """Calcule la durée de travail nette (avec 1h de pause si > 1h)."""
     df_planning_calc = df_planning.copy()
+    
+    # Nouvelle conversion utilisant la fonction robuste
+    df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
+    df_planning_calc['Duree_Fin'] = df_planning_calc[COL_FIN].apply(convertir_heure_en_timedelta)
+    
     try:
-        # Convertir les heures de début et fin en objets timedelta pour le calcul
-        def to_timedelta_for_calc(val):
-            if pd.isna(val) or val == "": return pd.NaT
-            if isinstance(val, (datetime.time, pd.Timestamp)):
-                return pd.to_timedelta(str(val))
-            elif isinstance(val, (int, float)) and 0 <= val <= 1: 
-                # Gestion des formats Excel (fraction du jour)
-                total_seconds = val * 86400 
-                return pd.to_timedelta(total_seconds, unit='s')
-            return pd.to_timedelta(val)
-
-        df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(to_timedelta_for_calc)
-        df_planning_calc['Duree_Fin'] = df_planning_calc[COL_FIN].apply(to_timedelta_for_calc)
-        
         # Calcul de la durée brute et ajustement pour la pause
         def calculer_duree(row):
-            # Si les heures sont manquantes, ou si les dates sont invalides
+            # Si les heures sont manquantes
             if pd.isna(row['Duree_Debut']) or pd.isna(row['Duree_Fin']):
                 return pd.Timedelta(0)
             
@@ -100,7 +107,6 @@ def charger_donnees(fichier):
     try:
         df = pd.read_excel(fichier)
     except Exception:
-        # Essayer CSV avec différents séparateurs/encodages si Excel échoue
         try:
             df = pd.read_csv(fichier, sep=';', encoding='latin1')
         except Exception:
@@ -108,111 +114,4 @@ def charger_donnees(fichier):
                 df = pd.read_csv(fichier, encoding='latin1') 
             except Exception as e_final:
                 st.error(f"**ERREUR CRITIQUE : Impossible de lire le fichier de données.** Vérifiez le nom et le format du fichier (`{fichier}`).")
-                st.stop()
-    
-    # Nettoyage des colonnes
-    df.columns = df.columns.str.strip()
-    df[COL_DEBUT] = df[COL_DEBUT].fillna("")
-    df[COL_FIN] = df[COL_FIN].fillna("")
-
-    for col in df.columns:
-        if df[col].dtype == 'object' or df[col].dtype.name == 'category': 
-            df[col] = df[col].astype(str).str.strip()
-            
-    df = df.dropna(how='all')
-    df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
-    df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
-    
-    return df
-
-# --- 3. INTERFACE STREAMLIT PRINCIPALE ---
-
-st.set_page_config(page_title="Planning Employé", layout="wide")
-
-try:
-    # 3.1 Affichage du titre et du logo
-    st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    try:
-        # Tente d'utiliser st.logo si disponible (Streamlit > 1.29)
-        st.logo(NOM_DU_LOGO, icon_image=NOM_DU_LOGO) 
-    except AttributeError:
-        # Fallback pour les versions plus anciennes
-        if NOM_DU_LOGO and st.sidebar:
-            st.sidebar.image(NOM_DU_LOGO, use_column_width=True)
-    except Exception:
-        # Indiquer si le logo est introuvable sans casser l'app
-         st.sidebar.warning(f"Logo '{NOM_DU_LOGO}' non trouvé.")
-    
-    # 3.2 Chargement des données
-    df_initial = charger_donnees(NOM_DU_FICHIER)
-    
-    liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
-    
-    if not liste_employes or (len(liste_employes) == 1 and str(liste_employes[0]).upper() in ['', 'NAN', 'NONE', 'N/A']):
-        st.error(f"**ERREUR DE DONNÉES :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide ou mal nommée. Impossible de continuer.")
-        st.stop()
-
-    liste_semaines_brutes = sorted(df_initial[COL_SEMAINE].unique().tolist())
-    liste_semaines_formatees = [get_dates_for_week(s) for s in liste_semaines_brutes]
-    semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
-    
-    # 3.3 Création des menus déroulants (dans la sidebar)
-    st.sidebar.header("Sélections")
-    
-    employe_selectionne = st.sidebar.selectbox(
-        'Sélectionnez l\'employé',
-        liste_employes
-    )
-
-    semaine_selectionnee_formattee = st.sidebar.selectbox(
-        'Sélectionnez la semaine',
-        liste_semaines_formatees
-    )
-    
-    semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
-
-    # 3.4 Affichage du planning
-    if employe_selectionne and semaine_selectionnee_brute:
-        
-        # Filtrer par employé et par semaine
-        df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
-        df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee_brute].copy()
-        
-        # GESTION SPÉCIFIQUE (Exemple : Jour de Noël S52)
-        if semaine_selectionnee_brute == 'S52':
-            df_filtre_avant = len(df_filtre)
-            df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
-            
-            if len(df_filtre) < df_filtre_avant:
-                st.info(f"Note: Le **Jeudi** de la semaine S52 a été retiré (Jour de Noël).")
-
-        # Trier par Jour logique
-        df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
-        df_filtre = df_filtre.sort_values(by=[COL_JOUR])
-        
-        # Calculer les heures et obtenir le tableau
-        df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
-        
-        st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
-        
-        # Affichage du tableau de planning
-        st.dataframe(
-            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']], 
-            use_container_width=True,
-            column_config={
-                COL_JOUR: st.column_config.Column("Jour", width="large"),
-                COL_DEBUT: st.column_config.Column("Début"),
-                COL_FIN: st.column_config.Column("Fin"),
-                'Durée du service': st.column_config.Column("Durée Nette"),
-            },
-            hide_index=True
-        )
-        
-        # Affichage du total
-        st.markdown(f"***")
-        st.markdown(f"**TOTAL de la semaine pour {employe_selectionne} :** **{total_heures_format}**")
-        
-except Exception as e:
-    st.error(f"Une erreur inattendue est survenue lors de l'exécution de l'application. Veuillez vérifier le format de votre fichier de données ({NOM_DU_FICHIER}) ou les dépendances : **{e}**")
+                st.stop
