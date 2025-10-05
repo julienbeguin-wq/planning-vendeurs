@@ -8,7 +8,7 @@ import streamlit_authenticator as stauth
 
 # --- CONFIGURATION DU FICHIER ---
 NOM_DU_FICHIER = "planningss.xlsx"
-NOM_DU_LOGO = "mon_logo.png"
+NOM_DU_LOGO = "mon_logo.png" # Assurez-vous que ce fichier existe
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
@@ -27,7 +27,8 @@ passwords_clairs = ['password123', 'autre_mdp']
 
 # 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
 hasher = stauth.Hasher()
-hashed_passwords = hasher.generate(passwords_clairs) # CORRECTION stauth.Hasher().generate(passwords_clairs)
+hashed_passwords = hasher.generate(passwords_clairs)
+
 
 config = {
     'cookie': {
@@ -84,19 +85,10 @@ def get_dates_for_week(week_str, year=2025):
     except Exception:
         return week_str
 
-# --- FIN DE LA FONCTION get_dates_for_week ---
-        
-# LIGNES DÉPLACÉES ET INDENTÉES CORRECTEMENT (anciennes lignes 77-83)
-date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
-date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
-
-return f"{week_str} : du {date_debut_str} au {date_fin_str}"
-Le bloc précédent se termine ici
-
-except Exception: # Le except est mal indenté, ou il a un caractère étrange devant lui.
-
-return week_str
-# --- FIN DE LA FONCTION get_dates_for_week ---
+# --- FONCTION DE CALCUL ---
+def calculer_heures_travaillees(df_planning):
+    """Calcule le total des heures travaillées et la durée par service."""
+    
     df_planning_calc = df_planning.copy()
 
     try:
@@ -200,7 +192,13 @@ if st.session_state["authentication_status"]:
     st.sidebar.markdown(f"Bienvenue **{name}**")
     authenticator.logout('Déconnexion', 'sidebar') 
     
-    st.logo(NOM_DU_LOGO, icon_image=NOM_DU_LOGO) 
+    # Le logo doit être présent pour ne pas provoquer d'erreur
+    try:
+        st.logo(NOM_DU_LOGO, icon_image=NOM_DU_LOGO) 
+    except Exception:
+        # st.logo() est un ajout récent, on le gère au cas où.
+        st.sidebar.image(NOM_DU_LOGO, use_column_width=True)
+
     st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
@@ -212,7 +210,7 @@ if st.session_state["authentication_status"]:
         liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
         
         if not liste_employes or (len(liste_employes) == 1 and str(liste_employes[0]).upper() in ['', 'NAN', 'NONE', 'N/A']):
-            st.error(f"**ERREUR DE DONNÉES :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide.")
+            st.error(f"**ERREUR DE DONNÉES :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide ou mal nommée.")
             st.stop()
 
         liste_semaines_brutes = sorted(df_initial[COL_SEMAINE].unique().tolist())
