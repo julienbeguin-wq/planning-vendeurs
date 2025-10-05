@@ -26,7 +26,7 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 passwords_clairs = ['password123', 'autre_mdp'] 
 
 # 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
-# Utilisation de la syntaxe la plus stable : Hasher() instancié séparément
+# Utilisation de la syntaxe standard. Si elle échoue, mettez à jour la librairie.
 hasher = stauth.Hasher()
 hashed_passwords = hasher.generate(passwords_clairs)
 
