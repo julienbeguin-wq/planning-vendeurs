@@ -104,9 +104,9 @@ def convertir_heure_en_timedelta(val):
         return pd.to_timedelta(val)
     except:
         return pd.NaT
-
-def calculer_duree_service(row):
-    """Calcule la durée de travail nette pour une ligne (avec 1h de pause si > 1h)."""
+    
+def calculer_duree_brute(row):
+    """Calcule la durée de travail brute (avant déduction de la pause)."""
     if pd.isna(row['Duree_Debut']) or pd.isna(row['Duree_Fin']): 
         return pd.Timedelta(0) 
     
@@ -114,6 +114,12 @@ def calculer_duree_service(row):
     
     if duree < pd.Timedelta(0): 
         duree += pd.Timedelta(days=1)
+    
+    return duree
+
+def calculer_duree_service(row):
+    """Calcule la durée de travail nette pour une ligne (avec 1h de pause si > 1h)."""
+    duree = row['Duree_Brute'] # Utilise la durée brute calculée précédemment
         
     if duree > pd.Timedelta(hours=1): 
         duree -= pd.Timedelta(hours=1)
@@ -128,8 +134,12 @@ def calculer_heures_travaillees(df_planning):
     df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
     df_planning_calc['Duree_Fin'] = df_planning_calc[COL_FIN].apply(convertir_heure_en_timedelta)
     
+    # Nouvelle colonne pour la durée brute
+    df_planning_calc['Duree_Brute'] = df_planning_calc.apply(calculer_duree_brute, axis=1)
+    
     df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree_service, axis=1)
     df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
+    df_planning['Duree_Brute'] = df_planning_calc['Duree_Brute'] # Ajout de la durée brute au DF principal
 
     durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
     total_duree = durees_positives.sum()
@@ -172,6 +182,9 @@ def charger_donnees(fichier):
     df_calc = df.copy()
     df_calc['Duree_Debut'] = df_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
     df_calc['Duree_Fin'] = df_calc[COL_FIN].apply(convertir_heure_en_timedelta)
+    
+    # Recalculer la durée brute AVANT la durée de service
+    df_calc['Duree_Brute'] = df_calc.apply(calculer_duree_brute, axis=1)
     df_calc['Durée_Service_Total'] = df_calc.apply(calculer_duree_service, axis=1)
 
     df_totaux = df_calc.groupby([COL_EMPLOYE, COL_SEMAINE])['Durée_Service_Total'].sum().reset_index()
@@ -212,23 +225,20 @@ def login():
             else:
                 st.error("Identifiant ou mot de passe incorrect.")
 
-# --- NOUVELLE FONCTION DE STYLISATION ---
+# --- FONCTION DE STYLISATION ---
 
 def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     """Applique une couleur de fond à la ligne en fonction du statut (Repos, École, Anniversaire)."""
-    styles = [''] * len(row) # Styles par défaut (vide)
+    styles = [''] * len(row) 
     
-    # Récupérer le statut via la map (Passer de 'LUNDI' à 'Repos' par ex)
     jour_str = row[COL_JOUR] 
     statut = statut_map.get(jour_str, "")
     
     # 1. Calculer la date complète du jour de la ligne
     try:
-        # Trouver l'index du jour dans la liste ORDRE_JOURS
         jour_index = ORDRE_JOURS.index(jour_str) 
         date_ligne = date_debut_semaine + timedelta(days=jour_index)
     except Exception:
-        # Si le nom du jour est invalide, ne rien colorer
         return styles
 
     # 2. Styles prioritaires
@@ -236,6 +246,7 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     # Anniversaire 🥳
     if employe_connecte in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
+        # Utilise l'information enregistrée (votre anniversaire est le 18 octobre)
         if date_ligne.month == mois_anniv and date_ligne.day == jour_anniv:
             # Jaune clair
             return ['background-color: #FFFF99'] * len(row) 
@@ -255,7 +266,6 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
         # Bleu clair
         return ['background-color: #DDEEFF'] * len(row) 
     
-    # Par défaut (blanc ou couleur neutre si non spécifié)
     return styles
 
 # --- Démarrer le processus d'authentification ---
@@ -413,8 +423,13 @@ else:
                     return "Repos"
 
                 df_resultat['Statut'] = df_resultat.apply(obtenir_statut, axis=1)
+                
+                # Ajoute la colonne de Pause Déduite
+                df_resultat['Pause Déduite'] = df_resultat.apply(
+                    lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
+                )
 
-                # Créer la map du statut pour la fonction de style (pour éviter de passer toute la colonne)
+                # Créer la map du statut pour la fonction de style
                 statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
 
                 # Mise en forme des colonnes DEBUT/FIN pour l'affichage (remplacer par Repos/École)
@@ -432,12 +447,15 @@ else:
                     value=f"{total_heures_format}h"
                 )
                 
+                # --- PHRASE AJOUTÉE ICI ---
+                st.markdown("**Une heure de pause méridienne est déduite chaque jour travaillé.**")
+                
                 st.markdown("---")
                 
-                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE (SANS COLONNE STATUT VISIBLE) ---
+                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE (V10.3) ---
                 
-                # Colonnes à afficher (Statut n'est plus inclus)
-                df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]].copy()
+                # Colonnes à afficher (inclut la nouvelle colonne Pause Déduite, exclut Statut)
+                df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite']].copy()
 
                 # Appliquer la fonction de style LIGNE PAR LIGNE
                 styled_df = df_affichage.style.apply(
@@ -445,7 +463,7 @@ else:
                     axis=1,
                     date_debut_semaine=date_debut_semaine,
                     employe_connecte=employe_selectionne,
-                    statut_map=statut_map # Passage de la map de statut
+                    statut_map=statut_map 
                 )
                 
                 st.dataframe(
@@ -455,6 +473,7 @@ else:
                         COL_JOUR: st.column_config.Column("Jour", width="large"),
                         COL_DEBUT: st.column_config.Column("Début / Statut"), 
                         COL_FIN: st.column_config.Column("Fin"),
+                        'Pause Déduite': st.column_config.Column("Pause Déduite (Net)", width="small"),
                     },
                     hide_index=True
                 )
