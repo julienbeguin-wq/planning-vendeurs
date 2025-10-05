@@ -8,7 +8,6 @@ import os
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
-# Le paramètre base="light" a été retiré pour corriger le TypeError.
 st.set_page_config(
     page_title="Planning CLICHY - Consultation", 
     layout="wide", 
@@ -273,13 +272,28 @@ else:
             liste_semaines_formatees = [get_dates_for_week(s, format_type='full') for s in liste_semaines_brutes]
             semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
             
+            # --- LOGIQUE D'AMÉLIORATION B: SÉLECTION AUTOMATIQUE DE LA SEMAINE ACTUELLE ---
+            semaine_actuelle_num = date.today().isocalendar()[1]
+            # Formate le numéro de semaine avec un 'S' et deux chiffres (ex: 'S41')
+            semaine_actuelle_brute = f"S{semaine_actuelle_num:02d}" 
+            
+            # Chercher l'index de la semaine actuelle
+            try:
+                # Tente de trouver la semaine actuelle dans la liste des semaines disponibles
+                index_semaine_actuelle = liste_semaines_brutes.index(semaine_actuelle_brute)
+            except ValueError:
+                # Si la semaine actuelle n'est pas dans le planning, sélectionne la première semaine de la liste
+                index_semaine_actuelle = 0
+            
             
             # --- 1. DÉTAIL SEMAINE (Sélection) EN PREMIER ---
             st.sidebar.header("Détail Semaine") 
             
             semaine_selectionnee_formattee = st.sidebar.selectbox(
                 'Sélectionnez la semaine', 
-                liste_semaines_formatees
+                liste_semaines_formatees,
+                # Utilisation de l'index calculé pour la présélection
+                index=index_semaine_actuelle 
             )
             
             semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
