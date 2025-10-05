@@ -586,4 +586,73 @@ else:
                 # ------------------------------------------------------------------
 
                 # Création du statut_map pour le stylage
-                statut_map = df_resultat.set_
+                statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
+
+                # Remplace l'affichage des heures par le statut si Repos/École
+                df_resultat[COL_DEBUT] = df_resultat.apply(
+                    lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
+                )
+                df_resultat[COL_FIN] = df_resultat.apply(
+                    lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
+                )
+
+                st.subheader(f"Planning pour **{employe_selectionne.title()}**")
+                
+                st.metric(
+                    label=f"Total d'heures calculées pour la semaine {semaine_selectionnee_brute} ({annee_selectionnee})", 
+                    value=f"{total_heures_format}h"
+                )
+                
+                st.markdown("**Une heure de pause méridienne est déduite chaque jour de service (si la durée brute dépasse 1h).**")
+                
+                excel_buffer = to_excel_buffer(
+                    df_resultat, 
+                    total_heures_format, 
+                    employe_selectionne, 
+                    semaine_selectionnee_brute,
+                    annee_selectionnee
+                )
+                
+                st.download_button(
+                    label="📥 Télécharger le planning (Excel)",
+                    data=excel_buffer,
+                    file_name=f"Planning_{employe_selectionne.title()}_{semaine_selectionnee_brute}_{annee_selectionnee}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Télécharge le planning hebdomadaire dans un fichier Excel (.xlsx)."
+                )
+
+                st.markdown("---")
+                
+                # --- AFFICHAGE FINAL ---
+                
+                # 'Pause Déduite' est supprimée de l'affichage
+                df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]].copy() 
+
+                styled_df = df_affichage.style.apply(
+                    appliquer_style,
+                    axis=1,
+                    date_debut_semaine=date_debut_semaine,
+                    employe_connecte=employe_selectionne,
+                    statut_map=statut_map 
+                )
+                
+                st.dataframe(
+                    styled_df, 
+                    use_container_width=True,
+                    column_config={
+                        COL_JOUR: st.column_config.Column("Jour", width="large"),
+                        COL_DEBUT: st.column_config.Column("Début / Statut"), 
+                        COL_FIN: st.column_config.Column("Fin"),
+                        # 'Pause Déduite' est supprimée de la configuration des colonnes
+                    },
+                    hide_index=True
+                )
+                
+                st.markdown("""
+                **Légende :**
+                ⚪ Repos | 🔵 École | 🟢 Aujourd'hui | 🟡 Anniversaire
+                """)
+                
+    except Exception as e:
+        # st.error(f"Une erreur fatale s'est produite : {e}.")
+        st.exception(e) # Affiche l'erreur complète pour le débogage
