@@ -167,7 +167,7 @@ st.set_page_config(page_title="Planning Employé", layout="wide")
 try:
     # 3.1 Affichage du titre principal
     st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
-    st.markdown("---") # Ligne de séparation
+    st.markdown("---")
     
     # Tentative d'affichage du logo dans la sidebar
     try:
@@ -201,9 +201,13 @@ try:
     
     liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
 
+    # --- CORRECTION : Ne pas utiliser st.stop() ici ---
     if not liste_semaines_brutes:
+        st.markdown("---")
         st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}**.")
-        st.stop()
+        # Le script s'arrête ici si aucune semaine n'est disponible, mais la page reste affichée.
+        st.stop() 
+
 
     liste_semaines_formatees = [get_dates_for_week(s, format_type='full') for s in liste_semaines_brutes]
     semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
@@ -218,7 +222,7 @@ try:
     # 3.4 Affichage du planning
     if employe_selectionne and semaine_selectionnee_brute:
         
-        # --- NOUVEAU : Afficher la date sous le titre principal ---
+        # Afficher la date sous le titre principal
         dates_pour_affichage = get_dates_for_week(semaine_selectionnee_brute, format_type='only_dates')
         st.markdown(f"<h3 style='text-align: center;'>{dates_pour_affichage}</h3>", unsafe_allow_html=True)
         st.markdown("---")
@@ -283,4 +287,5 @@ try:
         st.markdown(f"**TOTAL de la semaine pour {employe_selectionne} :** **{total_heures_format}**")
         
 except Exception as e:
+    # Affiche l'erreur si elle n'a pas été gérée plus tôt (problème de fichier, etc.)
     st.error(f"Une erreur inattendue est survenue : {e}. Veuillez vérifier les logs de votre application pour plus de détails.")
