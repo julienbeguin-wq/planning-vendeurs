@@ -151,8 +151,8 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 LIGNE 155 CORRIGÉE : Utilisation de TOUS les arguments nommés.
-name, authentication_status, username = authenticator.login(form_name='Login', location='main')
+# 💥 LIGNE 155 CORRIGÉE : Utilisation de SEUL l'argument nommé 'location'
+name, authentication_status, username = authenticator.login(location='main')
 
 
 # --- LOGIQUE POST-CONNEXION ---
