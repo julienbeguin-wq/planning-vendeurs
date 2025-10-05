@@ -37,7 +37,7 @@ def formater_duree(td):
 
 
 def get_dates_for_week(week_str, year=2025, format_type='full'):
-    """Calcule la plage de dates pour la semaine. (Correction de la méthode isoweek)"""
+    """Calcule la plage de dates pour la semaine."""
     try:
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
@@ -46,11 +46,8 @@ def get_dates_for_week(week_str, year=2025, format_type='full'):
     try:
         d = date(year, 1, 4) 
         
-        # --- CORRECTION DE LA LIGNE CLÉ ICI ---
-        # Remplace d.isoweek() par d.isocalendar()[1] pour la compatibilité Python
         iso_week_of_jan_4 = d.isocalendar()[1] 
         date_debut = d + timedelta(days=(week_num - iso_week_of_jan_4) * 7)
-        # ----------------------------------------
         
         date_fin = date_debut + timedelta(days=6)
         
@@ -160,8 +157,8 @@ def charger_donnees(fichier):
 st.set_page_config(page_title="Planning Employé", layout="wide")
 
 try:
-    # 3.1 Affichage du titre principal
-    st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
+    # 3.1 Affichage du titre principal (MODIFIÉ ICI)
+    st.markdown("<h1 style='text-align: center;'>PLANNING CLICHY</h1>", unsafe_allow_html=True)
     st.markdown("---") 
     
     # Tentative d'affichage du logo dans la sidebar
