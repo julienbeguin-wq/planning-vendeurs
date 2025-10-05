@@ -179,7 +179,7 @@ def login():
             if username_input in USERNAMES and password_input == PASSWORD:
                 st.session_state['authenticated'] = True
                 st.session_state['username'] = username_input
-                st.rerun() # Rafraîchit l'application pour afficher le contenu
+                st.rerun() 
             else:
                 st.error("Identifiant ou mot de passe incorrect.")
 
@@ -221,10 +221,20 @@ else:
             st.error(f"**ERREUR :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide ou contient des valeurs non valides.")
             st.stop()
 
-        # 4.3 Création des menus déroulants (dans la sidebar)
+        # 4.3 Barre latérale et menus déroulants (MODIFICATIONS A & B)
+        
+        # A. MESSAGE DE BIENVENUE ET DÉCONNEXION
+        st.sidebar.markdown(f"**👋 Bienvenue, {st.session_state['username'].title()}**")
+        
+        if st.sidebar.button("Déconnexion"):
+            st.session_state['authenticated'] = False
+            st.session_state['username'] = None
+            st.rerun()
+            
+        st.sidebar.markdown("---")
         st.sidebar.header("Sélections")
         
-        # Option 2: FORCER l'affichage du planning de l'utilisateur connecté 
+        # L'employé sélectionné est celui qui est connecté (pour la sécurité)
         employe_selectionne = st.session_state['username']
         
         if employe_selectionne not in liste_employes:
@@ -243,9 +253,7 @@ else:
         
         if not liste_semaines_brutes:
             st.markdown("---")
-            # --- C'EST ICI QU'ÉTAIT L'ERREUR DE COUPURE ---
             st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}**.")
-            # ------------------------------------------------
             
         else:
             # Poursuite de l'affichage UNIQUEMENT si des semaines sont disponibles
@@ -303,7 +311,14 @@ else:
                     lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
                 )
 
-                st.subheader(f"Planning pour **{employe_selectionne}**")
+                st.subheader(f"Planning pour **{employe_selectionne.title()}**")
+                
+                # B. AFFICHAGE DU TOTAL EN MODE METRIC (Tableau de bord)
+                st.metric(
+                    label=f"Total d'heures calculées pour la semaine {semaine_selectionnee_brute}", 
+                    value=f"{total_heures_format}h"
+                )
+                st.markdown("---")
                 
                 st.dataframe(
                     df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]], 
@@ -316,15 +331,6 @@ else:
                     hide_index=True
                 )
                 
-                st.markdown(f"***")
-                st.markdown(f"**TOTAL de la semaine pour {employe_selectionne} :** **{total_heures_format}**")
-
-                # Bouton de déconnexion
-                if st.sidebar.button("Déconnexion"):
-                    st.session_state['authenticated'] = False
-                    st.session_state['username'] = None
-                    st.rerun()
-
     except Exception as e:
         # Affiche l'erreur si elle n'a pas été gérée plus tôt
         st.error(f"Une erreur fatale s'est produite : {e}. Assurez-vous d'avoir sauvegardé votre fichier **app.py** et d'avoir relancé l'application.")
