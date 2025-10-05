@@ -58,31 +58,32 @@ config = {
 # --- FONCTION DE CONVERSION DE SEMAINE EN DATES ---
 
 def get_dates_for_week(week_str, year=2025):
-    """Convertit une chaîne de semaine (ex: 'S41') en dates de début et de fin (Lundi-Dimanche)."""
-    
-    MONTHS = {
-        1: "janvier", 2: "février", 3: "mars", 4: "avril", 5: "mai", 6: "juin",
-        7: "juillet", 8: "août", 9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre"
-    }
-    
-    try:
-        week_num = int(week_str.upper().replace('S', ''))
-    except ValueError:
-        return week_str
+    """Convertit une chaîne de semaine (ex: 'S41') en dates de début et de fin (Lundi-Dimanche)."""
 
-    try:
-        d = date(year, 1, 4) 
-        date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
-        date_fin = date_debut + timedelta(days=6)
+ MONTHS = {
+
+    1: "janvier", 2: "février", 3: "mars", 4: "avril", 5: "mai", 6: "juin",
+     : "juillet", 8: "août", 9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre"
+ }
+
+try:
+ week_num = int(week_str.upper().replace('S', ''))
+except ValueError:
+ return week_str
+
+try:
+d = date(year, 1, 4) 
+date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
+ date_fin = date_debut + timedelta(days=6)
         
-        # LIGNES DÉPLACÉES ET INDENTÉES CORRECTEMENT (anciennes lignes 77-83)
-        date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
-        date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
+# LIGNES DÉPLACÉES ET INDENTÉES CORRECTEMENT (anciennes lignes 77-83)
+ date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
+date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
 
-        return f"{week_str} : du {date_debut_str} au {date_fin_str}"
+return f"{week_str} : du {date_debut_str} au {date_fin_str}"
 
-    except Exception: # LE BLOC except: se réfère au second try:
-        return week_str
+except Exception: # LE BLOC except: se réfère au second try:
+return week_str
 # --- FIN DE LA FONCTION get_dates_for_week ---
 
 # --- FONCTION DE CALCUL ---
