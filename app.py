@@ -312,13 +312,8 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     html_calendar += "</tbody></table>"
     
     sidebar.markdown(html_calendar, unsafe_allow_html=True)
-    sidebar.markdown("""
-        <div style='font-size: 10px; margin-top: 10px;'>
-        <span style='background-color:#CCFFCC;'>&nbsp;&nbsp;&nbsp;</span> Travaillé &nbsp; 
-        <span style='background-color:#F0F0F0;'>&nbsp;&nbsp;&nbsp;</span> Repos &nbsp;
-        <span style='background-color:#DDEEFF;'>&nbsp;&nbsp;&nbsp;</span> École
-        </div>
-    """, unsafe_allow_html=True)
+    
+    # --- LÉGENDE SUPPRIMÉE ICI ---
 
 
 # --- 3. LOGIQUE D'AUTHENTIFICATION ---
@@ -654,9 +649,10 @@ else:
                     hide_index=True
                 )
                 
+                # Légende conservée pour la vue principale
                 st.markdown("""
                 **Légende :**
-                ⚪ Repos | 🔵 École | 🟢 Aujourd'hui | 🟡 Anniversaire
+                ⚪ Repos | 🟢 Aujourd'hui | 🟡 Anniversaire
                 """)
                 
     except Exception as e:
