@@ -97,11 +97,6 @@ except Exception: # Le except est mal indenté, ou il a un caractère étrange d
 
 return week_str
 # --- FIN DE LA FONCTION get_dates_for_week ---
-
-# --- FONCTION DE CALCUL ---
-def calculer_heures_travaillees(df_planning):
-    """Calcule le total des heures travaillées et la durée par service."""
-    
     df_planning_calc = df_planning.copy()
 
     try:
