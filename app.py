@@ -36,25 +36,30 @@ def formater_duree(td):
     if heures == 0 and minutes == 0: 
         return "Repos"
     
+    # Format HHh MMmin
     return f"{heures}h {minutes:02d}min"
 
 
 def get_dates_for_week(week_str, year=2025):
-    """Calcule la plage de dates pour l'affichage de la semaine."""
-    MONTHS = {
-        1: "janvier", 2: "février", 3: "mars", 4: "avril", 5: "mai", 6: "juin",
-        7: "juillet", 8: "août", 9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre"
-    }
+    """
+    Calcule la plage de dates pour l'affichage de la semaine et la retourne au format SXX : du DD/MM/YY au DD/MM/YY.
+    """
     try:
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
         return week_str
     try:
+        # Date arbitraire en début d'année pour commencer le calcul
         d = date(year, 1, 4) 
+        # Trouve le premier jour de la semaine (Lundi)
         date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
-        date_fin = date_debut + timedelta(days=6)
-        date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
-        date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
+        date_fin = date_debut + timedelta(days=6) # Dimanche
+        
+        # Formatage DD/MM/YY
+        date_debut_str = date_debut.strftime("%d/%m/%y")
+        date_fin_str = date_fin.strftime("%d/%m/%y")
+        
+        # Nouvelle chaîne de format
         return f"{week_str} : du {date_debut_str} au {date_fin_str}"
     except Exception:
         return week_str
@@ -178,6 +183,7 @@ try:
         st.stop()
 
     liste_semaines_brutes = sorted(df_initial[COL_SEMAINE].unique().tolist())
+    # Appelle la fonction modifiée ici
     liste_semaines_formatees = [get_dates_for_week(s) for s in liste_semaines_brutes]
     semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
     
@@ -217,12 +223,9 @@ try:
         # Calculer les heures et obtenir le tableau
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
         
-        # NOTE : La colonne 'Durée du service' est toujours dans df_resultat pour le calcul,
-        # mais nous allons maintenant l'ignorer à l'affichage.
-        
         st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
         
-        # Affichage du tableau de planning - ON NE GARDE QUE JOUR, DEBUT, ET FIN
+        # Affichage du tableau de planning - SANS la colonne Durée Nette
         st.dataframe(
             df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]], 
             use_container_width=True,
