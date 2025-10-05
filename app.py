@@ -212,19 +212,19 @@ def login():
             else:
                 st.error("Identifiant ou mot de passe incorrect.")
 
-# --- NOUVELLE FONCTION DE STYLISATION (MISE À JOUR) ---
+# --- NOUVELLE FONCTION DE STYLISATION ---
 
-def appliquer_style(row, date_debut_semaine, employe_connecte):
+def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     """Applique une couleur de fond à la ligne en fonction du statut (Repos, École, Anniversaire)."""
     styles = [''] * len(row) # Styles par défaut (vide)
     
-    # La colonne 'Statut' est la dernière du DataFrame d'affichage
-    statut = row.iloc[-1] 
+    # Récupérer le statut via la map (Passer de 'LUNDI' à 'Repos' par ex)
+    jour_str = row[COL_JOUR] 
+    statut = statut_map.get(jour_str, "")
     
     # 1. Calculer la date complète du jour de la ligne
     try:
-        # Trouver l'index du jour dans la liste ORDRE_JOURS (COL_JOUR est la première colonne)
-        jour_str = row.iloc[0] 
+        # Trouver l'index du jour dans la liste ORDRE_JOURS
         jour_index = ORDRE_JOURS.index(jour_str) 
         date_ligne = date_debut_semaine + timedelta(days=jour_index)
     except Exception:
@@ -296,7 +296,6 @@ else:
         # LOGIQUE D'ANNIVERSAIRE (Affichage en barre latérale)
         aujourdhui = date.today()
         
-        # J'utilise l'information enregistrée (votre anniversaire est le 18 octobre) pour vérifier l'affichage
         if employe_connecte in ANNIVERSAIRES:
             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
             
@@ -403,6 +402,7 @@ else:
                 
                 df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
                 
+                # Crée la colonne Statut
                 def obtenir_statut(row):
                     if row['Durée du service'] > pd.Timedelta(0):
                         return ""
@@ -414,6 +414,10 @@ else:
 
                 df_resultat['Statut'] = df_resultat.apply(obtenir_statut, axis=1)
 
+                # Créer la map du statut pour la fonction de style (pour éviter de passer toute la colonne)
+                statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
+
+                # Mise en forme des colonnes DEBUT/FIN pour l'affichage (remplacer par Repos/École)
                 df_resultat[COL_DEBUT] = df_resultat.apply(
                     lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
                 )
@@ -430,18 +434,19 @@ else:
                 
                 st.markdown("---")
                 
-                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE (CORRIGÉ) ---
+                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE (SANS COLONNE STATUT VISIBLE) ---
                 
-                # Colonnes à afficher, INCLUANT LA COLONNE 'Statut' pour le style
-                df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Statut']].copy()
+                # Colonnes à afficher (Statut n'est plus inclus)
+                df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]].copy()
 
                 # Appliquer la fonction de style LIGNE PAR LIGNE
                 styled_df = df_affichage.style.apply(
                     appliquer_style,
                     axis=1,
                     date_debut_semaine=date_debut_semaine,
-                    employe_connecte=employe_selectionne
-                ).hide(subset=['Statut'], axis="columns") # Cache la colonne 'Statut' pour l'utilisateur
+                    employe_connecte=employe_selectionne,
+                    statut_map=statut_map # Passage de la map de statut
+                )
                 
                 st.dataframe(
                     styled_df, 
