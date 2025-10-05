@@ -3,11 +3,11 @@ import streamlit as st
 from datetime import date, timedelta, time
 import numpy as np
 import io
-import os # <-- NOUVEL IMPORT NÉCESSAIRE
+import os 
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
-NOM_DU_FICHIER = "planningss.xlsx"
+NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -162,7 +162,7 @@ try:
     st.markdown("<h1 style='text-align: center;'>PLANNING CLICHY</h1>", unsafe_allow_html=True)
     st.markdown("---") 
     
-    # Tentative d'affichage du logo dans la sidebar (RENDU PLUS ROBUSTE)
+    # Tentative d'affichage du logo dans la sidebar
     logo_path = NOM_DU_LOGO
     
     if os.path.exists(logo_path):
@@ -173,7 +173,8 @@ try:
              # 2. Si st.logo échoue ou n'est pas supporté, utiliser l'image de la sidebar
              st.sidebar.image(logo_path, caption='Logo', use_column_width=True)
     else:
-        st.sidebar.warning(f"Fichier de logo non trouvé : {NOM_DU_LOGO}") # Afficher un avertissement si le fichier manque
+        # CORRECTION DE L'ERREUR D'F-STRING : la ligne était probablement coupée.
+        st.sidebar.warning(f"Fichier de logo non trouvé : {NOM_DU_LOGO}") 
 
     # 3.2 Chargement des données 
     df_initial = charger_donnees(NOM_DU_FICHIER)
@@ -182,4 +183,102 @@ try:
     
     # Vérification des employés après chargement
     if not liste_employes or (len(liste_employes) == 1 and str(liste_employes[0]).upper() in ['', 'NAN', 'NONE', 'N/A']):
-        st.error(f"**ERRE
+        st.error(f"**ERREUR :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide ou contient des valeurs non valides.")
+        st.stop()
+
+    # 3.3 Création des menus déroulants (dans la sidebar)
+    st.sidebar.header("Sélections")
+    
+    employe_selectionne = st.sidebar.selectbox(
+        'Sélectionnez l\'employé',
+        liste_employes
+    )
+    
+    # Filtrer les semaines travaillées pour l'employé sélectionné
+    df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
+    df_semaines_travaillees = df_employe_filtre[df_employe_filtre['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)]
+    
+    liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
+
+    # Initialisation de la semaine pour l'affichage conditionnel
+    semaine_selectionnee_brute = None
+    
+    if not liste_semaines_brutes:
+        st.markdown("---")
+        st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}**.")
+        
+    else:
+        # Poursuite de l'affichage UNIQUEMENT si des semaines sont disponibles
+        liste_semaines_formatees = [get_dates_for_week(s, format_type='full') for s in liste_semaines_brutes]
+        semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
+        
+        semaine_selectionnee_formattee = st.sidebar.selectbox(
+            'Sélectionnez la semaine (avec activité)',
+            liste_semaines_formatees
+        )
+        
+        semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
+
+        # 3.4 Affichage du planning
+        if employe_selectionne and semaine_selectionnee_brute:
+            
+            # Afficher la date sous le titre principal (l'objectif de la demande initiale)
+            dates_pour_affichage = get_dates_for_week(semaine_selectionnee_brute, format_type='only_dates')
+            
+            # Affichage de la date au centre
+            st.markdown(f"<h3 style='text-align: center;'>{dates_pour_affichage}</h3>", unsafe_allow_html=True)
+            st.markdown("---")
+            
+            df_filtre = df_employe_filtre[df_employe_filtre[COL_SEMAINE] == semaine_selectionnee_brute].copy()
+            
+            # GESTION SPÉCIFIQUE (Noël)
+            if semaine_selectionnee_brute == 'S52':
+                df_filtre_avant = len(df_filtre)
+                df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
+                if len(df_filtre) < df_filtre_avant:
+                    st.info(f"Note: Le **Jeudi** de la semaine S52 a été retiré (Jour de Noël).")
+
+            # Tri
+            df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
+            df_filtre = df_filtre.sort_values(by=[COL_JOUR])
+            
+            df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
+            
+            # Appliquer la logique Repos/École à l'affichage
+            def obtenir_statut(row):
+                if row['Durée du service'] > pd.Timedelta(0):
+                    return ""
+                debut_str = str(row[COL_DEBUT]).upper()
+                fin_str = str(row[COL_FIN]).upper()
+                if "ECOLE" in debut_str or "ECOLE" in fin_str:
+                    return "École"
+                return "Repos"
+
+            df_resultat['Statut'] = df_resultat.apply(obtenir_statut, axis=1)
+
+            df_resultat[COL_DEBUT] = df_resultat.apply(
+                lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
+            )
+            df_resultat[COL_FIN] = df_resultat.apply(
+                lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
+            )
+
+            st.subheader(f"Planning pour **{employe_selectionne}**")
+            
+            st.dataframe(
+                df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]], 
+                use_container_width=True,
+                column_config={
+                    COL_JOUR: st.column_config.Column("Jour", width="large"),
+                    COL_DEBUT: st.column_config.Column("Début / Statut"), 
+                    COL_FIN: st.column_config.Column("Fin"),
+                },
+                hide_index=True
+            )
+            
+            st.markdown(f"***")
+            st.markdown(f"**TOTAL de la semaine pour {employe_selectionne} :** **{total_heures_format}**")
+            
+except Exception as e:
+    # Affiche l'erreur si elle n'a pas été gérée plus tôt
+    st.error(f"Une erreur fatale s'est produite : {e}. Assurez-vous d'avoir sauvegardé votre fichier **app.py** et d'avoir relancé l'application.")
