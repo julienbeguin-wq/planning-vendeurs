@@ -26,8 +26,8 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 passwords_clairs = ['password123', 'autre_mdp'] 
 
 # 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
-# Correction de l'AttributeError: on appelle la méthode de classe generate()
-hashed_passwords = stauth.Hasher.generate(passwords_clairs)
+# CORRECTION FINALE : Syntaxe Hasher(passwords).generate()
+hashed_passwords = stauth.Hasher(passwords_clairs).generate()
 
 config = {
     'cookie': {
@@ -192,7 +192,7 @@ if st.session_state["authentication_status"]:
     st.sidebar.markdown(f"Bienvenue **{name}**")
     authenticator.logout('Déconnexion', 'sidebar') 
     
-    # Gestion de l'affichage du logo (ajusté pour la compatibilité)
+    # Gestion de l'affichage du logo
     try:
         st.logo(NOM_DU_LOGO, icon_image=NOM_DU_LOGO) 
     except AttributeError:
@@ -263,7 +263,7 @@ if st.session_state["authentication_status"]:
             
             # Affichage du tableau de planning
             st.dataframe(
-                df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']], # Ajout de 'Durée du service'
+                df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']], 
                 use_container_width=True,
                 column_config={
                     COL_JOUR: st.column_config.Column("Jour", width="large"),
