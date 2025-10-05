@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 
-NOM_DU_FICHIER = "planningss.xlsx"
+NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -318,9 +318,24 @@ else:
                 
                 # Créer le tableau de synthèse
                 df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
-                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False)
+                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=True) # Tri par ordre chronologique pour le graphique
                 
-                # Formater la colonne des totaux pour l'affichage
+                # --- NOUVEAU CODE : AFFICHAGE DU GRAPHIQUE ---
+                # Convertir Timedelta en secondes puis en heures pour le graphique (facile à tracer)
+                df_synthese['Heures_Secondes'] = df_synthese['TEMPS_TOTAL_SEMAINE'].dt.total_seconds() / 3600
+                
+                st.sidebar.bar_chart(
+                    df_synthese, 
+                    x=COL_SEMAINE, # Colonne SEMAINE pour l'axe X
+                    y='Heures_Secondes', # Colonne en Heures pour l'axe Y
+                    height=200 # Réduire la hauteur pour que cela tienne mieux dans la sidebar
+                )
+                st.sidebar.markdown("**Heures travaillées (net)**")
+                # --- FIN NOUVEAU CODE ---
+                
+                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False) # Tri inverse pour le tableau
+                
+                # Formater la colonne des totaux pour l'affichage du tableau
                 df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
                 
                 st.sidebar.dataframe(
@@ -401,4 +416,5 @@ else:
                 )
                 
     except Exception as e:
-        # Affiche l'erreur si elle n'a pas
+        # Affiche l'erreur si elle n'a pas été gérée plus tôt
+        st.error(f"Une erreur fatale s'est produite : {e}.")
