@@ -26,15 +26,15 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 
 def formater_duree(td):
     """Convertit un Timedelta en format 'Hh MMmin' lisible, ou 'Repos'."""
-    if td == pd.Timedelta(0) or pd.isna(td):
-        # Cette fonction est maintenant utilisée UNIQUEMENT pour le TOTAL
-        return "0h 00" 
+    if pd.isna(td):
+        return "0h 00"
     
     total_seconds = td.total_seconds()
     heures = int(total_seconds // 3600)
     minutes = int((total_seconds % 3600) // 60)
     
-    return f"{heures}h {minutes:02d}min"
+    # Format HHh MMmin, utilisé principalement pour le TOTAL
+    return f"{heures}h {minutes:02d}"
 
 
 def get_dates_for_week(week_str, year=2025):
@@ -73,54 +73,50 @@ def convertir_heure_en_timedelta(val):
     except:
         return pd.NaT
 
+def calculer_duree_service(row):
+    """Calcule la durée de travail nette pour une ligne (avec 1h de pause si > 1h)."""
+    if pd.isna(row['Duree_Debut']) or pd.isna(row['Duree_Fin']):
+        return pd.Timedelta(0) 
+    
+    duree = row['Duree_Fin'] - row['Duree_Debut']
+    
+    if duree < pd.Timedelta(0): 
+        duree += pd.Timedelta(days=1)
+        
+    if duree > pd.Timedelta(hours=1): 
+        duree -= pd.Timedelta(hours=1)
+        
+    if duree < pd.Timedelta(0): return pd.Timedelta(0)
+    return duree
+
 def calculer_heures_travaillees(df_planning):
-    """Calcule la durée de travail nette (avec 1h de pause si > 1h)."""
+    """Calcule la durée de travail nette et le total."""
     df_planning_calc = df_planning.copy()
     
-    # NOTE: Nous convertissons TOUTES les valeurs non-heure en chaînes vides/NaN pour le calcul.
     df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
     df_planning_calc['Duree_Fin'] = df_planning_calc[COL_FIN].apply(convertir_heure_en_timedelta)
     
-    try:
-        def calculer_duree(row):
-            if pd.isna(row['Duree_Debut']) or pd.isna(row['Duree_Fin']):
-                return pd.Timedelta(0) 
-            
-            duree = row['Duree_Fin'] - row['Duree_Debut']
-            
-            if duree < pd.Timedelta(0): 
-                duree += pd.Timedelta(days=1)
-                
-            if duree > pd.Timedelta(hours=1): 
-                duree -= pd.Timedelta(hours=1)
-                
-            if duree < pd.Timedelta(0): return pd.Timedelta(0)
-            return duree
+    df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree_service, axis=1)
+    df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
 
-        df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree, axis=1)
-        df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
-
-        # Calcul du total des heures nettes
-        durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
-        total_duree = durees_positives.sum()
-        
-        total_heures_format = formater_duree(total_duree).replace("min", "") 
-        
-        return df_planning, total_heures_format
-        
-    except Exception as e:
-        df_planning['Durée du service'] = pd.NaT
-        return df_planning, f"Erreur de calcul: {e}"
+    # Calcul du total des heures nettes (pour l'affichage du total)
+    durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
+    total_duree = durees_positives.sum()
+    
+    total_heures_format = formater_duree(total_duree).replace("min", "") 
+    
+    return df_planning, total_heures_format
 
 @st.cache_data
 def charger_donnees(fichier):
-    """Charge le fichier (Excel ou CSV), vérifie les colonnes et nettoie les données."""
+    """Charge le fichier, vérifie les colonnes, nettoie les données et pré-calcule les totaux."""
     try:
         df = pd.read_excel(fichier)
     except FileNotFoundError:
         st.error(f"**ERREUR CRITIQUE : Fichier non trouvé.** Assurez-vous que `{fichier}` est dans le même répertoire que `app.py`.")
         st.stop()
     except Exception:
+        # Tenter d'autres formats si Excel échoue
         try:
             df = pd.read_csv(fichier, sep=';', encoding='latin1')
         except Exception:
@@ -138,16 +134,31 @@ def charger_donnees(fichier):
         st.error(f"**ERREUR DE DONNÉES : Colonnes manquantes.** Votre fichier doit contenir les colonnes suivantes : {', '.join(COLONNES_OBLIGATOIRES)}. Colonnes manquantes : {', '.join(colonnes_manquantes)}")
         st.stop()
         
-    # IMPORTANT : Pour cette étape, nous ne remplaçons plus par '' mais nous laissons les valeurs
-    # d'origine pour pouvoir détecter le mot "ÉCOLE" plus tard.
-    # Nous nettoyons juste le texte
     for col in df.columns:
         if df[col].dtype == 'object' or df[col].dtype.name == 'category': 
             df[col] = df[col].astype(str).str.strip()
-    
+            
     df = df.dropna(how='all')
     df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
     df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
+
+    # --------------------------------------------------------------------------
+    # NOUVEAU : Pré-calculer le temps de travail total de chaque ligne
+    # --------------------------------------------------------------------------
+    df_calc = df.copy()
+    df_calc['Duree_Debut'] = df_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
+    df_calc['Duree_Fin'] = df_calc[COL_FIN].apply(convertir_heure_en_timedelta)
+    df_calc['Durée_Service_Total'] = df_calc.apply(calculer_duree_service, axis=1)
+
+    # Grouper par employé et par semaine pour obtenir le total des secondes travaillées
+    df_totaux = df_calc.groupby([COL_EMPLOYE, COL_SEMAINE])['Durée_Service_Total'].sum().reset_index()
+    
+    # Renommer la colonne totale pour un accès facile
+    df_totaux = df_totaux.rename(columns={'Durée_Service_Total': 'TEMPS_TOTAL_SEMAINE'})
+    
+    # Fusionner le total des heures travaillées par semaine dans le DataFrame principal
+    df = pd.merge(df, df_totaux, on=[COL_EMPLOYE, COL_SEMAINE], how='left')
+    df['TEMPS_TOTAL_SEMAINE'] = df['TEMPS_TOTAL_SEMAINE'].fillna(pd.Timedelta(0))
     
     return df
 
@@ -156,7 +167,6 @@ def charger_donnees(fichier):
 st.set_page_config(page_title="Planning Employé", layout="wide")
 
 try:
-    # 3.1 Affichage du titre et du logo
     st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
@@ -177,10 +187,6 @@ try:
         st.error(f"**ERREUR DE DONNÉES :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide. Impossible de continuer.")
         st.stop()
 
-    liste_semaines_brutes = sorted(df_initial[COL_SEMAINE].unique().tolist())
-    liste_semaines_formatees = [get_dates_for_week(s) for s in liste_semaines_brutes]
-    semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
-    
     # 3.3 Création des menus déroulants (dans la sidebar)
     st.sidebar.header("Sélections")
     
@@ -188,9 +194,27 @@ try:
         'Sélectionnez l\'employé',
         liste_employes
     )
+    
+    # --------------------------------------------------------------------------
+    # NOUVEAU : Filtrer la liste des semaines disponibles
+    # --------------------------------------------------------------------------
+    df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
+    
+    # Isoler les semaines où le temps de travail total est > 0 secondes
+    df_semaines_travaillees = df_employe_filtre[df_employe_filtre['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)]
+    
+    liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
 
+    if not liste_semaines_brutes:
+        st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}**.")
+        st.stop()
+
+
+    liste_semaines_formatees = [get_dates_for_week(s) for s in liste_semaines_brutes]
+    semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
+    
     semaine_selectionnee_formattee = st.sidebar.selectbox(
-        'Sélectionnez la semaine',
+        'Sélectionnez la semaine (avec activité)',
         liste_semaines_formatees
     )
     
@@ -199,10 +223,9 @@ try:
     # 3.4 Affichage du planning
     if employe_selectionne and semaine_selectionnee_brute:
         
-        df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
-        df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee_brute].copy()
+        df_filtre = df_employe_filtre[df_employe_filtre[COL_SEMAINE] == semaine_selectionnee_brute].copy()
         
-        # GESTION SPÉCIFIQUE (Noël)
+        # GESTION SPÉCIFIQUE (Noël) - MANTENUE
         if semaine_selectionnee_brute == 'S52':
             df_filtre_avant = len(df_filtre)
             df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
@@ -217,29 +240,24 @@ try:
         # Calculer les heures et obtenir le tableau
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
         
-        # --- NOUVEAU : Ajouter la colonne "Statut" pour Repos/École ---
+        # --- Appliquer la logique Repos/École à l'affichage ---
         def obtenir_statut(row):
-            # Si le calcul de durée est positif (> 0), on travaille
             if row['Durée du service'] > pd.Timedelta(0):
-                return "" # La colonne Début/Fin affiche les heures
+                return ""
             
-            # Sinon, si un des champs contient le mot 'ECOLE', on affiche 'École'
-            elif isinstance(row[COL_DEBUT], str) and "ECOLE" in row[COL_DEBUT].upper():
-                return "École"
-            elif isinstance(row[COL_FIN], str) and "ECOLE" in row[COL_FIN].upper():
+            debut_str = str(row[COL_DEBUT]).upper()
+            fin_str = str(row[COL_FIN]).upper()
+
+            if "ECOLE" in debut_str or "ECOLE" in fin_str:
                 return "École"
             
-            # Sinon, c'est Repos
             return "Repos"
 
-        # Créer la colonne de statut
         df_resultat['Statut'] = df_resultat.apply(obtenir_statut, axis=1)
 
-        # Remplacer les heures par le statut si c'est 'Repos' ou 'École'
         df_resultat[COL_DEBUT] = df_resultat.apply(
             lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
         )
-        # On peut vider la colonne FIN pour les jours de repos/école pour plus de clarté
         df_resultat[COL_FIN] = df_resultat.apply(
             lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
         )
@@ -247,13 +265,13 @@ try:
 
         st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
         
-        # Affichage du tableau de planning - ON N'AFFICHE PAS la colonne Statut
+        # Affichage du tableau de planning - SANS la colonne Durée Nette
         st.dataframe(
             df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]], 
             use_container_width=True,
             column_config={
                 COL_JOUR: st.column_config.Column("Jour", width="large"),
-                COL_DEBUT: st.column_config.Column("Début / Statut"), # Renomme l'en-tête
+                COL_DEBUT: st.column_config.Column("Début / Statut"), 
                 COL_FIN: st.column_config.Column("Fin"),
             },
             hide_index=True
