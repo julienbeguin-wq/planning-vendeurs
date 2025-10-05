@@ -277,7 +277,8 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, output_contai
     
     # 3. Générer le calendrier HTML
     cal = calendar.Calendar(firstweekday=calendar.MONDAY)
-    html_calendar = f"<h2>Vue Mensuelle</h2><h4>{calendar.month_name[mois].title()} {annee}</h4>"
+    output_container.header("Vue Mensuelle")
+    html_calendar = f"<h4>{calendar.month_name[mois].title()} {annee}</h4>"
     
     # Correction pour forcer l'affichage des 7 colonnes
     html_calendar += "<table style='width: 100%; font-size: 14px; text-align: center; border-collapse: collapse; table-layout: fixed;'>"
@@ -442,7 +443,7 @@ else:
         liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
         employe_connecte = st.session_state['username']
         
-        # --- Barre latérale ---
+        # --- Barre latérale : Informations utilisateur et déconnexion ---
         st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         aujourdhui = date.today()
         
@@ -515,26 +516,7 @@ else:
             
             semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
             
-            # --- AFFICHAGE DE LA SYNTHÈSE ANNUELLE (DANS LA BARRE LATÉRALE) ---
-            st.sidebar.header("Synthèse Annuelle")
-            
-            # Affichage du tableau de la synthèse dans la sidebar
-            df_totaux_sidebar = df_employe_annee.drop_duplicates(subset=[COL_SEMAINE]).copy()
-            df_totaux_sidebar = df_totaux_sidebar[df_totaux_sidebar['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)]
-            df_totaux_sidebar['Total (net)'] = df_totaux_sidebar['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
-            
-            # Colonnes à afficher : SEMAINE et Total (net)
-            df_sidebar_affichage = df_totaux_sidebar[[COL_SEMAINE, 'Total (net)']].copy()
-            df_sidebar_affichage.columns = ["SEMAINE", "Total (net)"]
-            
-            st.sidebar.dataframe(
-                df_sidebar_affichage,
-                hide_index=True,
-                use_container_width=True,
-                column_config={"SEMAINE": st.column_config.Column("SEMAINE", width="small")}
-            )
-            
-            st.sidebar.markdown("---")
+            st.sidebar.markdown("---") # Sépare la sélection de la vue mensuelle
 
             
             # --- CALCUL DU MOIS POUR LE CALENDRIER ---
@@ -544,15 +526,14 @@ else:
                 format_type='month'
             )
             
-            # 4.3 AFFICHAGE DU CALENDRIER (MAINTENANT DANS LE CORPS PRINCIPAL)
-            st.header("Vue Mensuelle")
-            # Affiche le calendrier dans le conteneur principal (st)
+            # 4.3 AFFICHAGE DU CALENDRIER (DANS LE CORPS PRINCIPAL)
+            # st.header("Vue Mensuelle") est maintenant dans la fonction afficher_calendrier
             afficher_calendrier(
                 df_employe_filtre, 
                 mois_selectionne, 
                 annee_calendrier, 
                 employe_connecte, 
-                st # Passe le conteneur principal
+                st 
             )
             
             st.markdown("---")
