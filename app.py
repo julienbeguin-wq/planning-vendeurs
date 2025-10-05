@@ -280,7 +280,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     
     html_calendar += "<table style='width: 100%; font-size: 12px; text-align: center; border-collapse: collapse;'>"
     html_calendar += "<thead><tr>"
-    # LIGNE CORRIGÉE : AJOUT DE SAMEDI ET DIMANCHE
+    # EN-TÊTES DE JOURS CORRIGÉS POUR INCLURE SAM ET DIM
     for day_name in ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]:
         html_calendar += f"<th>{day_name}</th>"
     html_calendar += "</tr></thead><tbody>"
