@@ -29,7 +29,6 @@ passwords_clairs = ['password123', 'autre_mdp']
 hasher = stauth.Hasher()
 hashed_passwords = hasher.generate(passwords_clairs) # CORRECTION stauth.Hasher().generate(passwords_clairs)
 
-
 config = {
     'cookie': {
         'expiry_days': 30,
@@ -66,16 +65,17 @@ def get_dates_for_week(week_str, year=2025):
     }
     
     try:
+        # Premier bloc try: pour la conversion du numéro de semaine
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
         return week_str
 
     try:
+        # Second bloc try: pour le calcul des dates
         d = date(year, 1, 4) 
         date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
         date_fin = date_debut + timedelta(days=6)
         
-        # Le calcul et le retour se font DANS le bloc try:
         date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
         date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
 
