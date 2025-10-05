@@ -37,7 +37,7 @@ def formater_duree(td):
 
 
 def get_dates_for_week(week_str, year=2025, format_type='full'):
-    """Calcule la plage de dates pour la semaine."""
+    """Calcule la plage de dates pour la semaine. (Correction de la méthode isoweek)"""
     try:
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
@@ -45,7 +45,13 @@ def get_dates_for_week(week_str, year=2025, format_type='full'):
     
     try:
         d = date(year, 1, 4) 
-        date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
+        
+        # --- CORRECTION DE LA LIGNE CLÉ ICI ---
+        # Remplace d.isoweek() par d.isocalendar()[1] pour la compatibilité Python
+        iso_week_of_jan_4 = d.isocalendar()[1] 
+        date_debut = d + timedelta(days=(week_num - iso_week_of_jan_4) * 7)
+        # ----------------------------------------
+        
         date_fin = date_debut + timedelta(days=6)
         
         date_debut_str = date_debut.strftime("%d/%m/%y")
@@ -165,7 +171,6 @@ try:
          pass
 
     # 3.2 Chargement des données 
-    # VÉRIFICATION DE L'APPEL DE FONCTION
     df_initial = charger_donnees(NOM_DU_FICHIER)
     
     liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
