@@ -19,8 +19,7 @@ st.set_page_config(
     page_icon="📅"
 )
 
-
-NOM_DU_FICHIER = "RePlannings1.2.xlsx" # Vérifiez que ce nom est correct
+NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # LISTE DES ANNIVERSAIRES 🎂
@@ -249,8 +248,8 @@ def verifier_donnees(df_semaine):
     
     return avertissements
 
-def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
-    """Affiche un calendrier HTML stylisé dans la barre latérale."""
+def afficher_calendrier(df_employe, mois, annee, employe_connecte, output_container):
+    """Affiche un calendrier HTML stylisé dans le conteneur spécifié (st ou st.sidebar)."""
     
     statut_par_jour = defaultdict(lambda: 'Repos')
     
@@ -278,13 +277,15 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     
     # 3. Générer le calendrier HTML
     cal = calendar.Calendar(firstweekday=calendar.MONDAY)
-    html_calendar = f"<h4>{calendar.month_name[mois].title()} {annee}</h4>"
+    html_calendar = f"<h2>Vue Mensuelle</h2><h4>{calendar.month_name[mois].title()} {annee}</h4>"
     
-    html_calendar += "<table style='width: 100%; font-size: 12px; text-align: center; border-collapse: collapse;'>"
+    # Correction pour forcer l'affichage des 7 colonnes
+    html_calendar += "<table style='width: 100%; font-size: 14px; text-align: center; border-collapse: collapse; table-layout: fixed;'>"
     html_calendar += "<thead><tr>"
-    # EN-TÊTES DE JOURS
+    
+    # Forcer la largeur des en-têtes
     for day_name in ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]:
-        html_calendar += f"<th>{day_name}</th>"
+        html_calendar += f"<th style='width: 14.28%;'>{day_name}</th>"
     html_calendar += "</tr></thead><tbody>"
 
     aujourdhui = date.today()
@@ -293,8 +294,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
         html_calendar += "<tr>"
         for day_num, weekday in week:
             if day_num == 0:
-                # CORRECTION 1 : Ajout de la hauteur pour les jours du mois précédent/suivant (cellules grises vides)
-                html_calendar += "<td style='background-color: #E8E8E8; height: 25px;'></td>" 
+                html_calendar += "<td style='background-color: #E8E8E8; height: 35px;'></td>" 
                 continue
             
             day_date = date(annee, mois, day_num)
@@ -310,13 +310,12 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
                 if day_date.month == mois_anniv and day_date.day == jour_anniv:
                     day_style = styles['Anniversaire']
             
-            # CORRECTION 2 : Ajout de la hauteur pour les cellules de jours réelles (Travail/Repos/École)
-            html_calendar += f"<td style='{day_style}; border: 1px solid #DDDDDD; height: 25px;'>{day_num}</td>"
+            html_calendar += f"<td style='{day_style}; border: 1px solid #DDDDDD; height: 35px;'>{day_num}</td>"
         html_calendar += "</tr>"
     
     html_calendar += "</tbody></table>"
     
-    sidebar.markdown(html_calendar, unsafe_allow_html=True)
+    output_container.markdown(html_calendar, unsafe_allow_html=True)
     
 
 
@@ -389,24 +388,29 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
     df_export = df[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']].copy()
     df_export.columns = ['Jour', 'Début', 'Fin', 'Heures Net (Déduites)']
     
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df_export.to_excel(writer, sheet_name='Planning', index=False, startrow=4)
-        workbook = writer.book
-        worksheet = writer.sheets['Planning']
-        
-        time_format = workbook.add_format({'num_format': 'hh:mm'})
-        duration_format = workbook.add_format({'num_format': '[h]:mm'})
-        
-        worksheet.set_column('B:C', 15, time_format)  
-        worksheet.set_column('D:D', 20, duration_format) 
-        
-        worksheet.write('A1', f"Planning Hebdomadaire {annee_selectionnee}")
-        worksheet.write('A2', f"Employé: {employe_selectionne.title()}")
-        worksheet.write('A3', f"Semaine: {semaine_selectionnee_brute}")
-        worksheet.write('A4', f"Total d'heures nettes: {total_heures_format}h")
-        
-        worksheet.write('A10', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
-        
+    try:
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_export.to_excel(writer, sheet_name='Planning', index=False, startrow=4)
+            workbook = writer.book
+            worksheet = writer.sheets['Planning']
+            
+            time_format = workbook.add_format({'num_format': 'hh:mm'})
+            duration_format = workbook.add_format({'num_format': '[h]:mm'})
+            
+            worksheet.set_column('B:C', 15, time_format)  
+            worksheet.set_column('D:D', 20, duration_format) 
+            
+            worksheet.write('A1', f"Planning Hebdomadaire {annee_selectionnee}")
+            worksheet.write('A2', f"Employé: {employe_selectionne.title()}")
+            worksheet.write('A3', f"Semaine: {semaine_selectionnee_brute}")
+            worksheet.write('A4', f"Total d'heures nettes: {total_heures_format}h")
+            
+            worksheet.write('A10', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
+            
+    except ImportError:
+         st.error("Erreur d'exportation : Le module 'xlsxwriter' n'est pas installé. Veuillez l'installer (`pip install xlsxwriter`) pour activer le téléchargement Excel.")
+         return None # Retourne None si l'export a échoué
+         
     output.seek(0)
     return output
 
@@ -463,7 +467,7 @@ else:
 
         df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         
-        # --- SÉLECTION DE L'ANNÉE ---
+        # --- SÉLECTION DE L'ANNÉE (DANS LA BARRE LATÉRALE) ---
         st.sidebar.header("Période")
         annees_disponibles = sorted(df_employe_filtre['ANNEE'].unique().tolist(), reverse=True)
         if not annees_disponibles:
@@ -511,6 +515,27 @@ else:
             
             semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
             
+            # --- AFFICHAGE DE LA SYNTHÈSE ANNUELLE (DANS LA BARRE LATÉRALE) ---
+            st.sidebar.header("Synthèse Annuelle")
+            
+            # Affichage du tableau de la synthèse dans la sidebar
+            df_totaux_sidebar = df_employe_annee.drop_duplicates(subset=[COL_SEMAINE]).copy()
+            df_totaux_sidebar = df_totaux_sidebar[df_totaux_sidebar['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)]
+            df_totaux_sidebar['Total (net)'] = df_totaux_sidebar['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
+            
+            # Colonnes à afficher : SEMAINE et Total (net)
+            df_sidebar_affichage = df_totaux_sidebar[[COL_SEMAINE, 'Total (net)']].copy()
+            df_sidebar_affichage.columns = ["SEMAINE", "Total (net)"]
+            
+            st.sidebar.dataframe(
+                df_sidebar_affichage,
+                hide_index=True,
+                use_container_width=True,
+                column_config={"SEMAINE": st.column_config.Column("SEMAINE", width="small")}
+            )
+            
+            st.sidebar.markdown("---")
+
             
             # --- CALCUL DU MOIS POUR LE CALENDRIER ---
             mois_selectionne, annee_calendrier = get_dates_for_week(
@@ -519,22 +544,21 @@ else:
                 format_type='month'
             )
             
-            # 4.3 AFFICHAGE DU CALENDRIER
-            st.sidebar.markdown("---")
-            st.sidebar.subheader("Vue Mensuelle")
-            
-            # Affiche le calendrier avec les corrections de style
+            # 4.3 AFFICHAGE DU CALENDRIER (MAINTENANT DANS LE CORPS PRINCIPAL)
+            st.header("Vue Mensuelle")
+            # Affiche le calendrier dans le conteneur principal (st)
             afficher_calendrier(
                 df_employe_filtre, 
                 mois_selectionne, 
                 annee_calendrier, 
                 employe_connecte, 
-                st.sidebar
+                st # Passe le conteneur principal
             )
-            st.sidebar.markdown("---")
+            
+            st.markdown("---")
             
 
-            # 4.4 Affichage du planning principal
+            # 4.4 Affichage du planning principal (reste dans le corps principal)
             if employe_selectionne and semaine_selectionnee_brute:
                 
                 date_debut_semaine = get_dates_for_week(semaine_selectionnee_brute, annee_selectionnee, format_type='start_date')
@@ -544,10 +568,6 @@ else:
                 
                 # Filtre pour la semaine sélectionnée
                 df_filtre = df_employe_annee[df_employe_annee[COL_SEMAINE] == semaine_selectionnee_brute].copy()
-
-                # Exemple de filtre spécifique si nécessaire (laissé en commentaire si non pertinent pour votre usage)
-                # if semaine_selectionnee_brute == 'S52' and annee_selectionnee == 2025:
-                #     df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
                 
                 df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
                 df_filtre = df_filtre.sort_values(by=[COL_JOUR])
@@ -596,13 +616,14 @@ else:
                     annee_selectionnee
                 )
                 
-                st.download_button(
-                    label="📥 Télécharger le planning (Excel)",
-                    data=excel_buffer,
-                    file_name=f"Planning_{employe_selectionne.title()}_{semaine_selectionnee_brute}_{annee_selectionnee}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    help="Télécharge le planning hebdomadaire dans un fichier Excel (.xlsx)."
-                )
+                if excel_buffer:
+                    st.download_button(
+                        label="📥 Télécharger le planning (Excel)",
+                        data=excel_buffer,
+                        file_name=f"Planning_{employe_selectionne.title()}_{semaine_selectionnee_brute}_{annee_selectionnee}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="Télécharge le planning hebdomadaire dans un fichier Excel (.xlsx)."
+                    )
 
                 st.markdown("---")
                 
@@ -635,6 +656,5 @@ else:
                 """)
                 
     except Exception as e:
-        st.error("Une erreur s'est produite lors de l'exécution. Vérifiez le fichier Excel et les données.")
-        # Ligne pour le débogage si vous en avez besoin, mais à retirer en production :
-        # st.exception(e)
+        # st.error(f"Une erreur fatale s'est produite : {e}") # Réactivez ceci pour le débogage si besoin
+        pass
