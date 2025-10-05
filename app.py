@@ -6,7 +6,7 @@ import io
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
-NOM_DU_FICHIER = "Replannings.xlsx"
+NOM_DU_FICHIER = "RePlannings.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
