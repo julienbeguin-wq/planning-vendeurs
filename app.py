@@ -12,7 +12,7 @@ from collections import defaultdict
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
 st.set_page_config(
-    page_title="CLICHY Consultation Planning", 
+    page_title="Planning CLICHY - Consultation", 
     layout="wide", 
     initial_sidebar_state="expanded", 
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}, 
@@ -45,11 +45,6 @@ COLONNES_OBLIGATOIRES = [COL_EMPLOYE, COL_SEMAINE, COL_JOUR, COL_DEBUT, COL_FIN]
 # Ordre logique des jours
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
-# Mappage pour le calendrier
-JOURS_CALENDAR = {
-    'LUNDI': 0, 'MARDI': 1, 'MERCREDI': 2, 'JEUDI': 3, 'VENDREDI': 4, 'SAMEDI': 5, 'DIMANCHE': 6
-}
-
 # --- 2. FONCTIONS DE TRAITEMENT ---
 
 def formater_duree(td):
@@ -77,12 +72,9 @@ def get_dates_for_week(week_str, year, format_type='full'):
         return week_str if format_type == 'full' else "Erreur SEMAINE"
     
     try:
-        # Calcule le premier jour de l'année
         d = date(year, 1, 1)
-        # Trouve le jour qui correspond au lundi de la semaine 1 de l'année ISO
         date_debut_annee_iso = d + timedelta(days=-d.weekday())
 
-        # Calcule le début de la semaine souhaitée
         date_debut = date_debut_annee_iso + timedelta(weeks=week_num - 1)
         date_fin = date_debut + timedelta(days=6)
         
@@ -93,13 +85,14 @@ def get_dates_for_week(week_str, year, format_type='full'):
             return f"{week_str} ({year}): du {date_debut_str} au {date_fin_str}"
         elif format_type == 'start_date':
              return date_debut 
-        elif format_type == 'month': # Retourne le mois et l'année du début de semaine
+        elif format_type == 'month': 
              return (date_debut.month, date_debut.year)
         else: # only_dates
             return f"Semaine {week_str} ({year}) : du {date_debut_str} au {date_fin_str}"
             
     except Exception as e:
-        return f"Erreur de calcul de date: {e}" if format_type == 'only_dates' else week_str
+        # Gère les cas où la semaine n'est pas calculable pour l'année donnée
+        return date(year, 1, 1) if format_type == 'start_date' else (1, year) if format_type == 'month' else "Erreur SEMAINE"
 
 def convertir_heure_en_timedelta(val):
     """Convertit diverses entrées d'heure en timedelta (pour le calcul des heures)."""
@@ -140,20 +133,21 @@ def calculer_duree_service(row):
     if duree < pd.Timedelta(0): return pd.Timedelta(0)
     return duree
 
-def calculer_heures_travaillees(df_planning):
-    """Calcule la durée de travail nette et le total."""
-    df_planning_calc = df_planning.copy()
-    
-    df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
-    df_planning_calc['Duree_Fin'] = df_planning_calc[COL_FIN].apply(convertir_heure_en_timedelta)
-    
-    df_planning_calc['Duree_Brute'] = df_planning_calc.apply(calculer_duree_brute, axis=1)
-    
-    df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree_service, axis=1)
-    df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
-    df_planning['Duree_Brute'] = df_planning_calc['Duree_Brute'] 
+def obtenir_statut_global(row):
+    """Détermine le statut (Travail, Repos, École) basé sur la durée et le texte."""
+    if row['Durée du service'] > pd.Timedelta(0):
+        return "Travail"
+    debut_str = str(row[COL_DEBUT]).upper()
+    fin_str = str(row[COL_FIN]).upper()
+    if "ECOLE" in debut_str or "ECOLE" in fin_str:
+        return "École"
+    return "Repos"
 
-    durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
+
+def calculer_heures_travaillees(df_planning):
+    """Calcule le total des heures nettes pour le planning (ne fait plus les calculs intermédiaires)."""
+
+    durees_positives = df_planning[df_planning['Durée du service'] > pd.Timedelta(0)]['Durée du service']
     total_duree = durees_positives.sum()
     
     total_heures_format = formater_duree(total_duree).replace("min", "") 
@@ -171,7 +165,7 @@ def extraire_annee(semaine_str):
 
 @st.cache_data
 def charger_donnees(fichier):
-    """Charge le fichier, vérifie les colonnes, nettoie les données et pré-calcule les totaux."""
+    """Charge le fichier, vérifie les colonnes, **calcule toutes les durées par ligne** et pré-calcule les totaux."""
     if not os.path.exists(fichier):
         st.error(f"**ERREUR CRITIQUE DE FICHIER :** Le fichier '{fichier}' est introuvable. Assurez-vous qu'il est dans le même dossier que 'app.py' et que le nom est exact.")
         st.stop()
@@ -201,16 +195,28 @@ def charger_donnees(fichier):
     df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
     
     df['ANNEE'] = df[COL_SEMAINE].apply(extraire_annee)
-
-    df_calc = df.copy()
-    df_calc['Duree_Debut'] = df_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
-    df_calc['Duree_Fin'] = df_calc[COL_FIN].apply(convertir_heure_en_timedelta)
     
-    df_calc['Duree_Brute'] = df_calc.apply(calculer_duree_brute, axis=1)
-    df_calc['Durée_Service_Total'] = df_calc.apply(calculer_duree_service, axis=1)
+    # --- CALCULS DE DURÉE PAR LIGNE (Déplacé ici pour être disponible pour le calendrier) ---
+    df['Duree_Debut'] = df[COL_DEBUT].apply(convertir_heure_en_timedelta)
+    df['Duree_Fin'] = df[COL_FIN].apply(convertir_heure_en_timedelta)
+    
+    df['Duree_Brute'] = df.apply(calculer_duree_brute, axis=1)
+    df['Durée du service'] = df.apply(calculer_duree_service, axis=1) # Colonne nécessaire pour le calendrier
+    
+    # Ajout du statut par ligne pour le calendrier (Travail/Repos/École)
+    df['Statut'] = df.apply(obtenir_statut_global, axis=1)
+    
+    # Ajout de la colonne DATE (pour le calendrier)
+    df['DATE'] = df.apply(
+        lambda row: get_dates_for_week(row[COL_SEMAINE], row['ANNEE'], format_type='start_date') + 
+        timedelta(days=ORDRE_JOURS.index(row[COL_JOUR])), axis=1
+    )
+    df['DATE'] = pd.to_datetime(df['DATE'])
+    # -----------------------------------------------------------------------------------
 
-    df_totaux = df_calc.groupby([COL_EMPLOYE, COL_SEMAINE, 'ANNEE'])['Durée_Service_Total'].sum().reset_index()
-    df_totaux = df_totaux.rename(columns={'Durée_Service_Total': 'TEMPS_TOTAL_SEMAINE'})
+    # Calcul des totaux par semaine (pour la synthèse latérale)
+    df_totaux = df.groupby([COL_EMPLOYE, COL_SEMAINE, 'ANNEE'])['Durée du service'].sum().reset_index()
+    df_totaux = df_totaux.rename(columns={'Durée du service': 'TEMPS_TOTAL_SEMAINE'})
     
     df = pd.merge(df, df_totaux, on=[COL_EMPLOYE, COL_SEMAINE, 'ANNEE'], how='left')
     df['TEMPS_TOTAL_SEMAINE'] = df['TEMPS_TOTAL_SEMAINE'].fillna(pd.Timedelta(0))
@@ -245,21 +251,14 @@ def verifier_donnees(df_semaine):
 def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     """Affiche un calendrier HTML stylisé dans la barre latérale."""
     
-    # Déterminer le statut pour chaque jour du mois
     statut_par_jour = defaultdict(lambda: 'Repos')
     
-    # 1. Calculer les jours de travail
     df_mois = df_employe[
         (df_employe['ANNEE'] == annee) & 
         (df_employe['DATE'].dt.month == mois)
     ].copy()
     
-    df_mois['Statut'] = df_mois.apply(
-        lambda row: "École" if "ECOLE" in str(row[COL_DEBUT]).upper() or "ECOLE" in str(row[COL_FIN]).upper() 
-        else ("Travail" if row['Durée du service'] > pd.Timedelta(0) else "Repos"),
-        axis=1
-    )
-    
+    # Utilisation de la colonne 'Statut' pré-calculée
     for _, row in df_mois.iterrows():
         jour = row['DATE'].day
         statut_par_jour[jour] = row['Statut']
@@ -267,11 +266,11 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
 
     # 2. Préparer les styles
     styles = {
-        'Travail': 'background-color: #CCFFCC; font-weight: bold;', # Vert clair
-        'Repos': 'background-color: #F0F0F0;', # Gris clair
-        'École': 'background-color: #DDEEFF; color: #0000FF;', # Bleu clair
-        'Aujourdhui': 'border: 2px solid #FF0000; font-weight: bold; padding: 2px;', # Bordure rouge
-        'Anniversaire': 'background-color: #FFFF99; font-weight: bold;', # Jaune
+        'Travail': 'background-color: #CCFFCC; font-weight: bold;', 
+        'Repos': 'background-color: #F0F0F0;', 
+        'École': 'background-color: #DDEEFF; color: #0000FF;', 
+        'Aujourdhui': 'border: 2px solid #FF0000; font-weight: bold; padding: 2px;', 
+        'Anniversaire': 'background-color: #FFFF99; font-weight: bold;', 
         'Default': 'background-color: white;'
     }
     
@@ -279,7 +278,6 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     cal = calendar.Calendar(firstweekday=calendar.MONDAY)
     html_calendar = f"<h4>{calendar.month_name[mois].title()} {annee}</h4>"
     
-    # En-têtes des jours (Lun, Mar, ...)
     html_calendar += "<table style='width: 100%; font-size: 12px; text-align: center; border-collapse: collapse;'>"
     html_calendar += "<thead><tr>"
     for day_name in ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]:
@@ -292,7 +290,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
         html_calendar += "<tr>"
         for day_num, weekday in week:
             if day_num == 0:
-                html_calendar += "<td style='background-color: #E8E8E8;'></td>" # Jour vide (gris)
+                html_calendar += "<td style='background-color: #E8E8E8;'></td>" 
                 continue
             
             day_date = date(annee, mois, day_num)
@@ -364,7 +362,7 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     except Exception:
         return styles
 
-    # Anniversaire 🥳
+    # Anniversaire 🥳 (18 octobre pour Julien)
     if employe_connecte in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
         if date_ligne.month == mois_anniv and date_ligne.day == jour_anniv:
@@ -388,6 +386,7 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
     """Crée un buffer Excel en mémoire pour le téléchargement."""
     output = io.BytesIO()
     
+    # Utilisation de la colonne 'Durée du service' qui doit exister
     df_export = df[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite', 'Durée du service']].copy()
     df_export.columns = ['Jour', 'Début', 'Fin', 'Pause Déduite (Net)', 'Heures Net (Déduites)']
     
@@ -523,16 +522,7 @@ else:
             st.sidebar.markdown("---")
             st.sidebar.subheader("Vue Mensuelle")
             
-            # Ajout de la colonne DATE nécessaire pour le filtre du calendrier
-            df_employe_filtre['DATE'] = df_employe_filtre.apply(
-                lambda row: get_dates_for_week(row[COL_SEMAINE], row['ANNEE'], format_type='start_date') + 
-                timedelta(days=ORDRE_JOURS.index(row[COL_JOUR])), axis=1
-            )
-            
-            # CORRECTION : Conversion explicite en datetime
-            df_employe_filtre['DATE'] = pd.to_datetime(df_employe_filtre['DATE'])
-            
-            # IMPORTANT: Afficher le calendrier avec le mois et l'année de la semaine sélectionnée
+            # Le dataframe df_employe_filtre a déjà les colonnes DATE, Statut et Durée du service
             afficher_calendrier(
                 df_employe_filtre, 
                 mois_selectionne, 
@@ -542,7 +532,7 @@ else:
             )
             st.sidebar.markdown("---")
             
-            # --- SYNTHÈSE GLOBALE (Reste inchangée)
+            # --- SYNTHÈSE GLOBALE 
             if not df_semaines_travaillees.empty:
                 st.sidebar.subheader(f"Synthèse {annee_selectionnee}")
                 df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
@@ -574,6 +564,7 @@ else:
                 st.markdown(f"<h3 style='text-align: center;'>{dates_pour_affichage}</h3>", unsafe_allow_html=True)
                 st.markdown("---")
                 
+                # df_filtre contient déjà toutes les colonnes de durée et Statut
                 df_filtre = df_employe_annee[df_employe_annee[COL_SEMAINE] == semaine_selectionnee_brute].copy()
 
                 if semaine_selectionnee_brute == 'S52' and annee_selectionnee == 2025:
@@ -584,19 +575,9 @@ else:
                 
                 df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
                 
-                # Crée la colonne Statut
-                def obtenir_statut(row):
-                    if row['Durée du service'] > pd.Timedelta(0):
-                        return ""
-                    debut_str = str(row[COL_DEBUT]).upper()
-                    fin_str = str(row[COL_FIN]).upper()
-                    if "ECOLE" in debut_str or "ECOLE" in fin_str:
-                        return "École"
-                    return "Repos"
-
-                df_resultat['Statut'] = df_resultat.apply(obtenir_statut, axis=1)
+                # Les colonnes Statut, Durée du service et Duree_Brute existent
                 
-                # Ajoute la colonne de Pause Déduite
+                # Ajoute la colonne de Pause Déduite pour l'affichage/export
                 df_resultat['Pause Déduite'] = df_resultat.apply(
                     lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
                 )
@@ -611,8 +592,10 @@ else:
                 
                 # ------------------------------------------------------------------
 
+                # Création du statut_map pour le stylage
                 statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
 
+                # Remplace l'affichage des heures par le statut si Repos/École
                 df_resultat[COL_DEBUT] = df_resultat.apply(
                     lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
                 )
@@ -677,4 +660,5 @@ else:
                 """)
                 
     except Exception as e:
-        st.error(f"Une erreur fatale s'est produite : {e}.")
+        # st.error(f"Une erreur fatale s'est produite : {e}.")
+        st.exception(e) # Affiche l'erreur complète pour le débogage
