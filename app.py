@@ -149,12 +149,9 @@ authenticator = stauth.Authenticate(
     config['cookie']['expiry_days']
 )
 
-# Ajout de la variable pour le contournement du bug de clé
-login_form_key = 'Login'
-
 # Affichage du formulaire de connexion
-# 💥 LIGNE 173 CORRIGÉE : Utilisation de la variable pour forcer l'interprétation correcte de la clé
-name, authentication_status, username = authenticator.login(login_form_key, 'main')
+# 💥 LIGNE 157 CORRIGÉE : Utilisation exclusive de l'argument nommé 'location'
+name, authentication_status, username = authenticator.login(location='main')
 
 # --- LOGIQUE POST-CONNEXION ---
 
