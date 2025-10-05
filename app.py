@@ -151,8 +151,8 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 LIGNE 157 CORRIGÉE : Utilisation de la syntaxe STANDARD pour la version 0.4.2
-name, authentication_status, username = authenticator.login('Login', location='main')
+# 💥 LIGNE 155 CORRIGÉE : Utilisation de TOUS les arguments nommés.
+name, authentication_status, username = authenticator.login(form_name='Login', location='main')
 
 
 # --- LOGIQUE POST-CONNEXION ---
@@ -256,6 +256,6 @@ elif st.session_state["authentication_status"] is False:
     st.error('Identifiant/mot de passe incorrect')
 
 elif st.session_state["authentication_status"] is None:
-    # L'utilisateur n'a pas encore entré d'informations (le formulaire s'affiche automatiquement dans 'main')
+    # L'utilisateur n'a pas encore entré d'informations (le formulaire s'affiche automatiquement)
     st.markdown("<h1 style='text-align: center;'>Connexion</h1>", unsafe_allow_html=True)
     st.warning('Veuillez entrer votre identifiant et mot de passe pour accéder.')
