@@ -22,12 +22,12 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 
 # --- CONFIGURATION D'AUTHENTIFICATION ---
 
-# 1. LISTE DE VOS MOTS DE PASSE EN CLAIR (À MODIFIER!)
-passwords_clairs = ['password123', 'autre_mdp'] 
+# 1. LISTE DE VOS MOTS DE PASSE EN CLAIR (NE SERT PLUS QU'À LA LECTURE)
+# Vos mots de passe clairs étaient : ['password123', 'autre_mdp']
 
-# 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
-# CORRECTION FINALE : Utilisation de la méthode statique directe, sans instanciation.
-hashed_passwords = stauth.Hasher.generate(passwords_clairs)
+# 2. MOTS DE PASSE CRYPTÉS (HASHÉS) - COPIÉS DIRECTEMENT (CORRECTIF FINAL)
+# 🚨🚨 REMPLACEZ CE QUI SUIT PAR LES VALEURS OBTENUES À L'ÉTAPE 1 🚨🚨
+hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] # ⬅️ COLLES TES VALEURS ICI
 
 config = {
     'cookie': {
