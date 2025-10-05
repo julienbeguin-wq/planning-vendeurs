@@ -27,7 +27,7 @@ passwords_clairs = ['password123', 'autre_mdp']
 
 # 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
 hasher = stauth.Hasher()
-hashed_passwords = hasher.generate(passwords_clairs)
+hashed_passwords = hasher.generate(passwords_clairs) # CORRECTION stauth.Hasher().generate(passwords_clairs)
 
 
 config = {
