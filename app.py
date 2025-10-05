@@ -26,7 +26,7 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 passwords_clairs = ['password123', 'autre_mdp'] 
 
 # 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
-# CORRECTION FINALE : Instanciation sans argument, puis passage des mots de passe à generate()
+# Utilisation de la syntaxe la plus stable : Hasher() instancié séparément
 hasher = stauth.Hasher()
 hashed_passwords = hasher.generate(passwords_clairs)
 
@@ -272,4 +272,20 @@ if st.session_state["authentication_status"]:
                     COL_FIN: st.column_config.Column("Fin"),
                     'Durée du service': st.column_config.Column("Durée Nette"),
                 },
-                hide_index=
+                hide_index=True
+            )
+            
+            # Ligne de TOTAL
+            st.markdown(f"***")
+            st.markdown(f"**TOTAL de la semaine pour {employe_selectionne} :** **{total_heures_format}**")
+            
+    except Exception as e:
+        st.error(f"Une erreur inattendue est survenue : {e}")
+
+elif st.session_state["authentication_status"] is False:
+    # L'utilisateur a échoué à se connecter
+    st.error('Identifiant/mot de passe incorrect')
+
+elif st.session_state["authentication_status"] is None:
+    # L'utilisateur n'a pas encore entré d'informations
+    st.warning('Veuillez entrer votre identifiant et mot de passe pour accéder.')
