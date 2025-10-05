@@ -8,15 +8,14 @@ import os
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
-# page_icon='📅' ajoute une icône de calendrier
-# initial_sidebar_state="expanded" garantit que la barre latérale est visible par défaut
-# menu_items retire les options "Get Help" et "Report a bug" pour une apparence plus professionnelle
+# On force le thème de base à "light" pour garantir un arrière-plan clair
 st.set_page_config(
     page_title="Planning CLICHY - Consultation", 
     layout="wide", 
     initial_sidebar_state="expanded", 
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}, 
-    page_icon="📅"
+    page_icon="📅",
+    base="light" 
 )
 
 
