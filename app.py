@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 
-NOM_DU_FICHIER = "RePlaannings1.2.xlsx"
+NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # LISTE DES ANNIVERSAIRES 🎂
