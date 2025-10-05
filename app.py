@@ -5,6 +5,8 @@ from datetime import date, timedelta
 import yaml 
 from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
+# NOUVEL IMPORT NÉCESSAIRE pour le contournement du hachage
+from passlib.context import CryptContext
 
 # --- CONFIGURATION DU FICHIER ---
 NOM_DU_FICHIER = "planningss.xlsx"
@@ -26,9 +28,10 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 passwords_clairs = ['password123', 'autre_mdp'] 
 
 # 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
-# CORRECTION DÉFINITIVE: Instancier Hasher SANS argument, puis appeler generate() AVEC les mots de passe.
-hasher = stauth.Hasher()
-hashed_passwords = hasher.generate(passwords_clairs)
+# CONTOURNEMENT de l'erreur Hasher : Utilisation directe de passlib
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+hashed_passwords = [pwd_context.hash(pwd) for pwd in passwords_clairs]
+# -------------------------------------------------------------
 
 config = {
     'cookie': {
@@ -58,6 +61,7 @@ config = {
 # --- FONCTION DE CONVERSION DE SEMAINE EN DATES ---
 
 def get_dates_for_week(week_str, year=2025):
+# ... (le reste de cette fonction n'a pas changé)
     """Convertit une chaîne de semaine (ex: 'S41') en dates de début et de fin (Lundi-Dimanche)."""
     
     MONTHS = {
@@ -87,6 +91,7 @@ def get_dates_for_week(week_str, year=2025):
 
 # --- FONCTION DE CALCUL ---
 def calculer_heures_travaillees(df_planning):
+# ... (le reste de cette fonction n'a pas changé)
     """Calcule le total des heures travaillées et la durée par service."""
     
     df_planning_calc = df_planning.copy()
@@ -139,6 +144,7 @@ def calculer_heures_travaillees(df_planning):
 
 @st.cache_data
 def charger_donnees(fichier):
+# ... (le reste de cette fonction n'a pas changé)
     """Charge le fichier (Excel ou CSV) et nettoie les données."""
     try:
         df = pd.read_excel(fichier)
