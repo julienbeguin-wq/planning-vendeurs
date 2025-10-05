@@ -33,7 +33,7 @@ def formater_duree(td):
     heures = int(total_seconds // 3600)
     minutes = int((total_seconds % 3600) // 60)
     
-    if heures == 0 and minutes == 0: # Pour une sécurité supplémentaire
+    if heures == 0 and minutes == 0: 
         return "Repos"
     
     return f"{heures}h {minutes:02d}min"
@@ -104,7 +104,7 @@ def calculer_heures_travaillees(df_planning):
         total_duree = durees_positives.sum()
         
         # Formatage du total
-        total_heures_format = formater_duree(total_duree).replace("min", "") # Enlève 'min' pour le total
+        total_heures_format = formater_duree(total_duree).replace("min", "") 
         
         return df_planning, total_heures_format
         
@@ -217,14 +217,14 @@ try:
         # Calculer les heures et obtenir le tableau
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
         
-        # --- CORRECTION 2 : Appliquer le format d'affichage lisible ---
-        df_resultat['Durée Nette'] = df_resultat['Durée du service'].apply(formater_duree)
+        # NOTE : La colonne 'Durée du service' est toujours dans df_resultat pour le calcul,
+        # mais nous allons maintenant l'ignorer à l'affichage.
         
         st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
         
-        # Affichage du tableau de planning
+        # Affichage du tableau de planning - ON NE GARDE QUE JOUR, DEBUT, ET FIN
         st.dataframe(
-            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée Nette']], # On utilise la nouvelle colonne formatée
+            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]], 
             use_container_width=True,
             column_config={
                 COL_JOUR: st.column_config.Column("Jour", width="large"),
