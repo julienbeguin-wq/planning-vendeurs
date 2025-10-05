@@ -24,6 +24,21 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 
 # --- 2. FONCTIONS DE TRAITEMENT ---
 
+def formater_duree(td):
+    """Convertit un Timedelta en format 'Hh MMmin' lisible, ou 'Repos'."""
+    if td == pd.Timedelta(0) or pd.isna(td):
+        return "Repos"
+    
+    total_seconds = td.total_seconds()
+    heures = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    
+    if heures == 0 and minutes == 0: # Pour une sécurité supplémentaire
+        return "Repos"
+    
+    return f"{heures}h {minutes:02d}min"
+
+
 def get_dates_for_week(week_str, year=2025):
     """Calcule la plage de dates pour l'affichage de la semaine."""
     MONTHS = {
@@ -51,11 +66,9 @@ def convertir_heure_en_timedelta(val):
     if isinstance(val, (time, pd.Timestamp)):
         return pd.to_timedelta(str(val))
     elif isinstance(val, (int, float)) and 0 <= val <= 1: 
-        # Gestion des formats Excel (fraction du jour)
         total_seconds = val * 86400 
         return pd.to_timedelta(total_seconds, unit='s')
     try:
-        # Essayer de convertir la chaîne si elle est déjà formatée
         return pd.to_timedelta(val)
     except:
         return pd.NaT
@@ -64,22 +77,19 @@ def calculer_heures_travaillees(df_planning):
     """Calcule la durée de travail nette (avec 1h de pause si > 1h)."""
     df_planning_calc = df_planning.copy()
     
-    # Nouvelle conversion utilisant la fonction robuste
     df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
     df_planning_calc['Duree_Fin'] = df_planning_calc[COL_FIN].apply(convertir_heure_en_timedelta)
     
     try:
-        # Calcul de la durée brute et ajustement pour la pause
         def calculer_duree(row):
             if pd.isna(row['Duree_Debut']) or pd.isna(row['Duree_Fin']):
-                return pd.Timedelta(0) # Renvoie 0 pour les jours non travaillés
+                return pd.Timedelta(0) 
             
             duree = row['Duree_Fin'] - row['Duree_Debut']
             
             if duree < pd.Timedelta(0): 
                 duree += pd.Timedelta(days=1)
                 
-            # Soustraction de la pause de 1 heure si la durée brute est > 1 heure
             if duree > pd.Timedelta(hours=1): 
                 duree -= pd.Timedelta(hours=1)
                 
@@ -93,11 +103,10 @@ def calculer_heures_travaillees(df_planning):
         durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
         total_duree = durees_positives.sum()
         
-        secondes_totales = total_duree.total_seconds()
-        heures = int(secondes_totales // 3600)
-        minutes = int((secondes_totales % 3600) // 60)
+        # Formatage du total
+        total_heures_format = formater_duree(total_duree).replace("min", "") # Enlève 'min' pour le total
         
-        return df_planning, f"{heures}h {minutes}min"
+        return df_planning, total_heures_format
         
     except Exception as e:
         df_planning['Durée du service'] = pd.NaT
@@ -121,7 +130,6 @@ def charger_donnees(fichier):
                 st.error(f"**ERREUR CRITIQUE : Impossible de lire le fichier de données.** Vérifiez le format (Excel, CSV) et le contenu de `{fichier}`.")
                 st.stop()
     
-    # Nettoyage des noms de colonnes et vérification des colonnes obligatoires
     df.columns = df.columns.str.strip()
     
     colonnes_manquantes = [col for col in COLONNES_OBLIGATOIRES if col not in df.columns]
@@ -130,8 +138,6 @@ def charger_donnees(fichier):
         st.error(f"**ERREUR DE DONNÉES : Colonnes manquantes.** Votre fichier doit contenir les colonnes suivantes : {', '.join(COLONNES_OBLIGATOIRES)}. Colonnes manquantes : {', '.join(colonnes_manquantes)}")
         st.stop()
         
-    # --- CORRECTION 1 : Remplacer les NaN par des chaînes vides avant le traitement final ---
-    # Cela permet à la fonction d'affichage de ne pas montrer "nan"
     df[COL_DEBUT] = df[COL_DEBUT].fillna('') 
     df[COL_FIN] = df[COL_FIN].fillna('')
 
@@ -162,7 +168,7 @@ try:
     except Exception:
          st.sidebar.warning(f"Logo '{NOM_DU_LOGO}' non trouvé.")
     
-    # 3.2 Chargement des données
+    # 3.2 Chargement des données 
     df_initial = charger_donnees(NOM_DU_FICHIER)
     
     liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
@@ -193,11 +199,10 @@ try:
     # 3.4 Affichage du planning
     if employe_selectionne and semaine_selectionnee_brute:
         
-        # Filtrer par employé et par semaine
         df_employe = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         df_filtre = df_employe[df_employe[COL_SEMAINE] == semaine_selectionnee_brute].copy()
         
-        # GESTION SPÉCIFIQUE (Exemple : Jour de Noël S52)
+        # GESTION SPÉCIFIQUE (Noël)
         if semaine_selectionnee_brute == 'S52':
             df_filtre_avant = len(df_filtre)
             df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
@@ -212,23 +217,19 @@ try:
         # Calculer les heures et obtenir le tableau
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
         
-        # --- CORRECTION 2 : Affichage d'une valeur vide ou 'Repos' au lieu de 'a few seconds' ---
-        # On remplace les durées nulles (Timedelta('0 days 00:00:00')) par une valeur à afficher
-        df_resultat['Durée du service'] = df_resultat['Durée du service'].apply(
-            lambda x: "Repos" if x == pd.Timedelta(0) else x
-        )
+        # --- CORRECTION 2 : Appliquer le format d'affichage lisible ---
+        df_resultat['Durée Nette'] = df_resultat['Durée du service'].apply(formater_duree)
         
         st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
         
         # Affichage du tableau de planning
         st.dataframe(
-            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']], 
+            df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée Nette']], # On utilise la nouvelle colonne formatée
             use_container_width=True,
             column_config={
                 COL_JOUR: st.column_config.Column("Jour", width="large"),
                 COL_DEBUT: st.column_config.Column("Début"),
                 COL_FIN: st.column_config.Column("Fin"),
-                'Durée du service': st.column_config.Column("Durée Nette"),
             },
             hide_index=True
         )
