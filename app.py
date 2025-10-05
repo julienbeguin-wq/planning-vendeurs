@@ -6,7 +6,7 @@ import io
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
-NOM_DU_FICHIER = "RePlannings1.1.xlsx"
+NOM_DU_FICHIER = "planningss.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -27,39 +27,30 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 def formater_duree(td):
     """Convertit un Timedelta en format 'Hh MMmin' lisible, ou 'Repos'."""
     if td == pd.Timedelta(0) or pd.isna(td):
-        return "Repos"
+        # Cette fonction est maintenant utilisée UNIQUEMENT pour le TOTAL
+        return "0h 00" 
     
     total_seconds = td.total_seconds()
     heures = int(total_seconds // 3600)
     minutes = int((total_seconds % 3600) // 60)
     
-    if heures == 0 and minutes == 0: 
-        return "Repos"
-    
-    # Format HHh MMmin
     return f"{heures}h {minutes:02d}min"
 
 
 def get_dates_for_week(week_str, year=2025):
-    """
-    Calcule la plage de dates pour l'affichage de la semaine et la retourne au format SXX : du DD/MM/YY au DD/MM/YY.
-    """
+    """Calcule la plage de dates pour l'affichage de la semaine et la retourne au format SXX : du DD/MM/YY au DD/MM/YY."""
     try:
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
         return week_str
     try:
-        # Date arbitraire en début d'année pour commencer le calcul
         d = date(year, 1, 4) 
-        # Trouve le premier jour de la semaine (Lundi)
         date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
-        date_fin = date_debut + timedelta(days=6) # Dimanche
+        date_fin = date_debut + timedelta(days=6)
         
-        # Formatage DD/MM/YY
         date_debut_str = date_debut.strftime("%d/%m/%y")
         date_fin_str = date_fin.strftime("%d/%m/%y")
         
-        # Nouvelle chaîne de format
         return f"{week_str} : du {date_debut_str} au {date_fin_str}"
     except Exception:
         return week_str
@@ -68,6 +59,10 @@ def convertir_heure_en_timedelta(val):
     """Convertit diverses entrées d'heure (time, float Excel, str) en timedelta."""
     if pd.isna(val) or val == "":
         return pd.NaT
+    # Ignorer si la cellule contient un mot clé comme "ÉCOLE"
+    if isinstance(val, str) and "ECOLE" in val.upper():
+         return pd.NaT
+         
     if isinstance(val, (time, pd.Timestamp)):
         return pd.to_timedelta(str(val))
     elif isinstance(val, (int, float)) and 0 <= val <= 1: 
@@ -82,6 +77,7 @@ def calculer_heures_travaillees(df_planning):
     """Calcule la durée de travail nette (avec 1h de pause si > 1h)."""
     df_planning_calc = df_planning.copy()
     
+    # NOTE: Nous convertissons TOUTES les valeurs non-heure en chaînes vides/NaN pour le calcul.
     df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
     df_planning_calc['Duree_Fin'] = df_planning_calc[COL_FIN].apply(convertir_heure_en_timedelta)
     
@@ -108,7 +104,6 @@ def calculer_heures_travaillees(df_planning):
         durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
         total_duree = durees_positives.sum()
         
-        # Formatage du total
         total_heures_format = formater_duree(total_duree).replace("min", "") 
         
         return df_planning, total_heures_format
@@ -143,13 +138,13 @@ def charger_donnees(fichier):
         st.error(f"**ERREUR DE DONNÉES : Colonnes manquantes.** Votre fichier doit contenir les colonnes suivantes : {', '.join(COLONNES_OBLIGATOIRES)}. Colonnes manquantes : {', '.join(colonnes_manquantes)}")
         st.stop()
         
-    df[COL_DEBUT] = df[COL_DEBUT].fillna('') 
-    df[COL_FIN] = df[COL_FIN].fillna('')
-
+    # IMPORTANT : Pour cette étape, nous ne remplaçons plus par '' mais nous laissons les valeurs
+    # d'origine pour pouvoir détecter le mot "ÉCOLE" plus tard.
+    # Nous nettoyons juste le texte
     for col in df.columns:
         if df[col].dtype == 'object' or df[col].dtype.name == 'category': 
             df[col] = df[col].astype(str).str.strip()
-            
+    
     df = df.dropna(how='all')
     df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
     df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
@@ -183,7 +178,6 @@ try:
         st.stop()
 
     liste_semaines_brutes = sorted(df_initial[COL_SEMAINE].unique().tolist())
-    # Appelle la fonction modifiée ici
     liste_semaines_formatees = [get_dates_for_week(s) for s in liste_semaines_brutes]
     semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
     
@@ -223,15 +217,43 @@ try:
         # Calculer les heures et obtenir le tableau
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
         
+        # --- NOUVEAU : Ajouter la colonne "Statut" pour Repos/École ---
+        def obtenir_statut(row):
+            # Si le calcul de durée est positif (> 0), on travaille
+            if row['Durée du service'] > pd.Timedelta(0):
+                return "" # La colonne Début/Fin affiche les heures
+            
+            # Sinon, si un des champs contient le mot 'ECOLE', on affiche 'École'
+            elif isinstance(row[COL_DEBUT], str) and "ECOLE" in row[COL_DEBUT].upper():
+                return "École"
+            elif isinstance(row[COL_FIN], str) and "ECOLE" in row[COL_FIN].upper():
+                return "École"
+            
+            # Sinon, c'est Repos
+            return "Repos"
+
+        # Créer la colonne de statut
+        df_resultat['Statut'] = df_resultat.apply(obtenir_statut, axis=1)
+
+        # Remplacer les heures par le statut si c'est 'Repos' ou 'École'
+        df_resultat[COL_DEBUT] = df_resultat.apply(
+            lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
+        )
+        # On peut vider la colonne FIN pour les jours de repos/école pour plus de clarté
+        df_resultat[COL_FIN] = df_resultat.apply(
+            lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
+        )
+
+
         st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
         
-        # Affichage du tableau de planning - SANS la colonne Durée Nette
+        # Affichage du tableau de planning - ON N'AFFICHE PAS la colonne Statut
         st.dataframe(
             df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]], 
             use_container_width=True,
             column_config={
                 COL_JOUR: st.column_config.Column("Jour", width="large"),
-                COL_DEBUT: st.column_config.Column("Début"),
+                COL_DEBUT: st.column_config.Column("Début / Statut"), # Renomme l'en-tête
                 COL_FIN: st.column_config.Column("Fin"),
             },
             hide_index=True
