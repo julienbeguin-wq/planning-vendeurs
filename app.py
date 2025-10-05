@@ -12,7 +12,7 @@ from collections import defaultdict
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
 st.set_page_config(
-    page_title="Planning CLICHY - Consultation", 
+    page_title="Consultation Planning Clichy", 
     layout="wide", 
     initial_sidebar_state="expanded", 
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}, 
@@ -610,7 +610,7 @@ else:
 
             st.subheader(f"Planning pour **{employe_selectionne.title()}**")
             
-            st.markdown("**Une heure de pause méridienne est déduite chaque jour de service (si la durée brute dépasse 1h).**")
+            st.markdown("**Une heure de pause méridienne est déduite chaque jour travaillé.**")
             
             # Bouton de téléchargement
             excel_buffer = to_excel_buffer(
@@ -657,6 +657,7 @@ else:
             )
             
             st.markdown("""
+            **Légende :**
             """)
             
     except Exception as e:
