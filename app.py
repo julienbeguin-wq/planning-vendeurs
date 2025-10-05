@@ -87,7 +87,7 @@ def get_dates_for_week(week_str, year=2025):
 # --- FIN DE LA FONCTION get_dates_for_week ---
         
 # LIGNES DÉPLACÉES ET INDENTÉES CORRECTEMENT (anciennes lignes 77-83)
- date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
+date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
 date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
 
 return f"{week_str} : du {date_debut_str} au {date_fin_str}"
