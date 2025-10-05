@@ -49,7 +49,6 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 JOURS_CALENDAR = {
     'LUNDI': 0, 'MARDI': 1, 'MERCREDI': 2, 'JEUDI': 3, 'VENDREDI': 4, 'SAMEDI': 5, 'DIMANCHE': 6
 }
-JOURS_CALENDAR_INVERSE = {v: k for k, v in JOURS_CALENDAR.items()}
 
 # --- 2. FONCTIONS DE TRAITEMENT ---
 
@@ -94,7 +93,7 @@ def get_dates_for_week(week_str, year, format_type='full'):
             return f"{week_str} ({year}): du {date_debut_str} au {date_fin_str}"
         elif format_type == 'start_date':
              return date_debut 
-        elif format_type == 'month': # NOUVEAU: Retourne le mois et l'année du début de semaine
+        elif format_type == 'month': # Retourne le mois et l'année du début de semaine
              return (date_debut.month, date_debut.year)
         else: # only_dates
             return f"Semaine {week_str} ({year}) : du {date_debut_str} au {date_fin_str}"
@@ -243,7 +242,6 @@ def verifier_donnees(df_semaine):
     
     return avertissements
 
-# NOUVELLE FONCTION CALENDRIER
 def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     """Affiche un calendrier HTML stylisé dans la barre latérale."""
     
@@ -335,6 +333,7 @@ if 'username' not in st.session_state:
     st.session_state['username'] = None
 
 def login():
+    """Fonction de gestion de la connexion."""
     st.markdown("<h1 style='text-align: center;'>Connexion à l'application Planning</h1>", unsafe_allow_html=True)
     st.warning("Veuillez entrer votre identifiant et mot de passe pour accéder.")
 
@@ -512,6 +511,7 @@ else:
             
             semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
             
+            
             # --- CALCUL DU MOIS POUR LE CALENDRIER ---
             mois_selectionne, annee_calendrier = get_dates_for_week(
                 semaine_selectionnee_brute, 
@@ -529,6 +529,9 @@ else:
                 timedelta(days=ORDRE_JOURS.index(row[COL_JOUR])), axis=1
             )
             
+            # CORRECTION : Conversion explicite en datetime
+            df_employe_filtre['DATE'] = pd.to_datetime(df_employe_filtre['DATE'])
+            
             # IMPORTANT: Afficher le calendrier avec le mois et l'année de la semaine sélectionnée
             afficher_calendrier(
                 df_employe_filtre, 
@@ -538,6 +541,28 @@ else:
                 st.sidebar
             )
             st.sidebar.markdown("---")
+            
+            # --- SYNTHÈSE GLOBALE (Reste inchangée)
+            if not df_semaines_travaillees.empty:
+                st.sidebar.subheader(f"Synthèse {annee_selectionnee}")
+                df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
+                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=True) 
+                
+                df_synthese['Heures_Secondes'] = df_synthese['TEMPS_TOTAL_SEMAINE'].dt.total_seconds() / 3600
+                
+                st.sidebar.bar_chart(df_synthese, x=COL_SEMAINE, y='Heures_Secondes', height=200)
+                st.sidebar.markdown("**Heures travaillées (net)**")
+                
+                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False) 
+                df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
+                
+                st.sidebar.dataframe(
+                    df_synthese[[COL_SEMAINE, 'Total Heures']],
+                    use_container_width=True,
+                    column_config={"Total Heures": st.column_config.Column("Total (net)", width="small")},
+                    hide_index=True
+                )
+                st.sidebar.markdown("---")
             
             # -------------------------------------------------
 
