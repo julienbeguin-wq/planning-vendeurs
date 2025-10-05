@@ -8,7 +8,7 @@ import streamlit_authenticator as stauth
 
 # --- CONFIGURATION DU FICHIER ---
 NOM_DU_FICHIER = "planningss.xlsx"
-NOM_DU_LOGO = "mon_logo.png" # Assurez-vous que ce fichier existe
+NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
@@ -26,9 +26,8 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 passwords_clairs = ['password123', 'autre_mdp'] 
 
 # 2. GÉNÉRER LES MOTS DE PASSE CRYPTÉS (HASHÉS)
-hasher = stauth.Hasher()
-hashed_passwords = hasher.generate(passwords_clairs)
-
+# Correction de l'AttributeError: on appelle la méthode de classe generate()
+hashed_passwords = stauth.Hasher.generate(passwords_clairs)
 
 config = {
     'cookie': {
@@ -112,8 +111,9 @@ def calculer_heures_travaillees(df_planning):
             duree = row['Duree_Fin'] - row['Duree_Debut']
             if duree < pd.Timedelta(0):
                 duree += pd.Timedelta(days=1)
+            # DÉDUCTION DE LA PAUSE DÉJEUNER (1 heure) si la durée est > 1h
             if duree > pd.Timedelta(hours=1):
-                duree -= pd.Timedelta(hours=1) # DÉDUCTION DE LA PAUSE DÉJEUNER (1 heure)
+                duree -= pd.Timedelta(hours=1) 
             if duree < pd.Timedelta(0):
                 return pd.Timedelta(0)
             return duree
@@ -192,12 +192,17 @@ if st.session_state["authentication_status"]:
     st.sidebar.markdown(f"Bienvenue **{name}**")
     authenticator.logout('Déconnexion', 'sidebar') 
     
-    # Le logo doit être présent pour ne pas provoquer d'erreur
+    # Gestion de l'affichage du logo (ajusté pour la compatibilité)
     try:
         st.logo(NOM_DU_LOGO, icon_image=NOM_DU_LOGO) 
+    except AttributeError:
+        # Pour les anciennes versions de Streamlit sans st.logo
+        if NOM_DU_LOGO and st.sidebar:
+            st.sidebar.image(NOM_DU_LOGO, use_column_width=True)
     except Exception:
-        # st.logo() est un ajout récent, on le gère au cas où.
-        st.sidebar.image(NOM_DU_LOGO, use_column_width=True)
+         # Gère l'erreur si le fichier n'est pas trouvé
+         st.sidebar.warning(f"Logo '{NOM_DU_LOGO}' non trouvé.")
+
 
     st.markdown("<h1 style='text-align: center;'>Application de Consultation de Planning</h1>", unsafe_allow_html=True)
     st.markdown("---")
@@ -258,12 +263,13 @@ if st.session_state["authentication_status"]:
             
             # Affichage du tableau de planning
             st.dataframe(
-                df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]],
+                df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']], # Ajout de 'Durée du service'
                 use_container_width=True,
                 column_config={
                     COL_JOUR: st.column_config.Column("Jour", width="large"),
                     COL_DEBUT: st.column_config.Column("Début"),
                     COL_FIN: st.column_config.Column("Fin"),
+                    'Durée du service': st.column_config.Column("Durée Nette"),
                 },
                 hide_index=True
             )
