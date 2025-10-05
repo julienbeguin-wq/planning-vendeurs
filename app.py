@@ -20,11 +20,11 @@ COL_FIN = 'HEURE FIN'
 # Ordre logique des jours
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
+# 🔑 BLOC DE DÉFINITION DE 'config' (Doit être ici!)
 # --- CONFIGURATION D'AUTHENTIFICATION ---
 # Ces mots de passe sont hachés, assurez-vous qu'ils correspondent à vos utilisateurs
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] 
 
-# La définition du dictionnaire 'config' doit être ici
 config = {
     'cookie': {
         'expiry_days': 30,
@@ -49,6 +49,7 @@ config = {
         'emails': ['example@email.com']
     }
 }
+# ----------------------------------------
 
 # --- FONCTIONS (inchangées) ---
 
