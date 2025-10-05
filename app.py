@@ -20,7 +20,7 @@ COL_FIN = 'HEURE FIN'
 # Ordre logique des jours
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
-# 🔑 DÉFINITION DE 'config' (Doit être ici pour éviter le NameError)
+# 🔑 DÉFINITION DE 'config' (CETTE SECTION DOIT ÊTRE ICI ET NON INDENTÉE)
 # --- CONFIGURATION D'AUTHENTIFICATION ---
 # Ces mots de passe sont hachés, assurez-vous qu'ils correspondent à vos utilisateurs
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] 
@@ -153,7 +153,7 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 CONTOURNEMENT : On stocke le résultat dans une seule variable temporaire pour éviter l'erreur d'unpacking
+# 💥 CONTOURNEMENT : On stocke le résultat dans une seule variable pour éviter le 'cannot unpack NoneType'
 auth_result = authenticator.login(location='main') 
 
 # Affectation CONDITIONNELLE des variables
