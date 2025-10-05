@@ -577,12 +577,10 @@ else:
                     lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
                 )
                 
-                # --- VÉRIFICATION DES DONNÉES ET AFFICHAGE DES ALERTES ---
-                avertissements = verifier_donnees(df_resultat)
-                if avertissements:
-                    with st.expander("⚠️ **Vérifications de cohérence du planning :**", expanded=True):
-                        for alerte in avertissements:
-                            st.warning(alerte, icon="🚨")
+                # --- VÉRIFICATION DES DONNÉES ET AFFICHAGE DES ALERTES (BLOC SUPPRIMÉ) ---
+                # NOTE : verifier_donnees est toujours appelé car il contient la logique de vérification
+                # mais le résultat n'est plus affiché.
+                verifier_donnees(df_resultat)
                 st.markdown("---")
                 
                 # ------------------------------------------------------------------
@@ -649,7 +647,6 @@ else:
                     hide_index=True
                 )
                 
-                # Légende conservée pour la vue principale
                 st.markdown("""
                 **Légende :**
                 ⚪ Repos | 🟢 Aujourd'hui | 🟡 Anniversaire
