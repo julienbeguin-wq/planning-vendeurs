@@ -25,6 +25,7 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 # Ces mots de passe sont hachés, assurez-vous qu'ils correspondent à vos utilisateurs
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] 
 
+# LA DÉFINITION DE CONFIG EST CRUCIALE POUR ÉVITER LE NameError
 config = {
     'cookie': {
         'expiry_days': 30,
@@ -144,7 +145,7 @@ def charger_donnees(fichier):
 
 st.set_page_config(page_title="Planning Employé", layout="wide")
 
-# NOUVEAU : Initialisation de l'authentification
+# NOUVEAU : Initialisation de l'authentification (doit être après la définition de 'config')
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
