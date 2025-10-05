@@ -25,28 +25,27 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 # --- 2. FONCTIONS DE TRAITEMENT ---
 
 def formater_duree(td):
-    """Convertit un Timedelta en format 'Hh MMmin' lisible, utilisé pour le total."""
     if pd.isna(td):
         return "0h 00"
-    
     total_seconds = td.total_seconds()
     heures = int(total_seconds // 3600)
     minutes = int((total_seconds % 3600) // 60)
-    
     return f"{heures}h {minutes:02d}"
 
 
 def get_dates_for_week(week_str, year=2025, format_type='full'):
     """
-    Calcule la plage de dates pour la semaine.
-    Si format_type='full', retourne SXX : du DD/MM/YY au DD/MM/YY (pour le menu).
-    Si format_type='only_dates', retourne du DD/MM/YY au DD/MM/YY (pour le titre).
+    Calcule la plage de dates pour la semaine. (Correction des retours d'erreurs)
     """
     try:
+        # Tente de convertir SXX en XX (numéro de semaine)
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
-        return week_str if format_type == 'full' else ""
+        return week_str if format_type == 'full' else "Erreur SEMAINE (pas un format SXX)"
+    
     try:
+        # La date de référence pour le calcul de la semaine ISO (4 janvier est toujours dans la S01)
+        # NOTE : Si la date est bien '2025', cela devrait fonctionner correctement
         d = date(year, 1, 4) 
         date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
         date_fin = date_debut + timedelta(days=6)
@@ -56,14 +55,14 @@ def get_dates_for_week(week_str, year=2025, format_type='full'):
         
         if format_type == 'full':
             return f"{week_str} : du {date_debut_str} au {date_fin_str}"
-        else:
+        else: # only_dates
             return f"Semaine {week_str} : du {date_debut_str} au {date_fin_str}"
             
-    except Exception:
-        return week_str if format_type == 'full' else ""
+    except Exception as e:
+        # Si une erreur de calcul se produit (année incorrecte, etc.)
+        return f"Erreur de calcul de date: {e}" if format_type == 'only_dates' else week_str
 
 def convertir_heure_en_timedelta(val):
-    """Convertit diverses entrées d'heure en timedelta (pour le calcul des heures)."""
     if pd.isna(val) or val == "":
         return pd.NaT
     if isinstance(val, str) and "ECOLE" in val.upper():
@@ -81,7 +80,6 @@ def convertir_heure_en_timedelta(val):
 
 def calculer_duree_service(row):
     """Calcule la durée de travail nette pour une ligne (avec 1h de pause si > 1h)."""
-    # Ligne corrigée : s'assurer que 'Duree_Fin' est complet
     if pd.isna(row['Duree_Debut']) or pd.isna(row['Duree_Fin']): 
         return pd.Timedelta(0) 
     
@@ -97,7 +95,6 @@ def calculer_duree_service(row):
     return duree
 
 def calculer_heures_travaillees(df_planning):
-    """Calcule la durée de travail nette et le total."""
     df_planning_calc = df_planning.copy()
     
     df_planning_calc['Duree_Debut'] = df_planning_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
@@ -169,103 +166,4 @@ try:
          pass
 
     # 3.2 Chargement des données 
-    df_initial = charger_donnees(NOM_DU_FICHIER)
-    
-    liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
-    
-    # Vérification des employés après chargement
-    if not liste_employes or (len(liste_employes) == 1 and str(liste_employes[0]).upper() in ['', 'NAN', 'NONE', 'N/A']):
-        st.error(f"**ERREUR :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide ou contient des valeurs non valides.")
-        st.stop()
-
-    # 3.3 Création des menus déroulants (dans la sidebar)
-    st.sidebar.header("Sélections")
-    
-    employe_selectionne = st.sidebar.selectbox(
-        'Sélectionnez l\'employé',
-        liste_employes
-    )
-    
-    # Filtrer les semaines travaillées pour l'employé sélectionné
-    df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
-    df_semaines_travaillees = df_employe_filtre[df_employe_filtre['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)]
-    
-    liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
-
-    if not liste_semaines_brutes:
-        st.markdown("---")
-        st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}**.")
-        
-    else:
-        # Poursuite de l'affichage UNIQUEMENT si des semaines sont disponibles
-        liste_semaines_formatees = [get_dates_for_week(s, format_type='full') for s in liste_semaines_brutes]
-        semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
-        
-        semaine_selectionnee_formattee = st.sidebar.selectbox(
-            'Sélectionnez la semaine (avec activité)',
-            liste_semaines_formatees
-        )
-        
-        semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
-
-        # 3.4 Affichage du planning
-        if employe_selectionne and semaine_selectionnee_brute:
-            
-            # Afficher la date sous le titre principal
-            dates_pour_affichage = get_dates_for_week(semaine_selectionnee_brute, format_type='only_dates')
-            st.markdown(f"<h3 style='text-align: center;'>{dates_pour_affichage}</h3>", unsafe_allow_html=True)
-            st.markdown("---")
-            
-            df_filtre = df_employe_filtre[df_employe_filtre[COL_SEMAINE] == semaine_selectionnee_brute].copy()
-            
-            # GESTION SPÉCIFIQUE (Noël)
-            if semaine_selectionnee_brute == 'S52':
-                df_filtre_avant = len(df_filtre)
-                df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
-                if len(df_filtre) < df_filtre_avant:
-                    st.info(f"Note: Le **Jeudi** de la semaine S52 a été retiré (Jour de Noël).")
-
-            # Tri
-            df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
-            df_filtre = df_filtre.sort_values(by=[COL_JOUR])
-            
-            df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
-            
-            # Appliquer la logique Repos/École à l'affichage
-            def obtenir_statut(row):
-                if row['Durée du service'] > pd.Timedelta(0):
-                    return ""
-                debut_str = str(row[COL_DEBUT]).upper()
-                fin_str = str(row[COL_FIN]).upper()
-                if "ECOLE" in debut_str or "ECOLE" in fin_str:
-                    return "École"
-                return "Repos"
-
-            df_resultat['Statut'] = df_resultat.apply(obtenir_statut, axis=1)
-
-            df_resultat[COL_DEBUT] = df_resultat.apply(
-                lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
-            )
-            df_resultat[COL_FIN] = df_resultat.apply(
-                lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
-            )
-
-            st.subheader(f"Planning pour **{employe_selectionne}**")
-            
-            st.dataframe(
-                df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]], 
-                use_container_width=True,
-                column_config={
-                    COL_JOUR: st.column_config.Column("Jour", width="large"),
-                    COL_DEBUT: st.column_config.Column("Début / Statut"), 
-                    COL_FIN: st.column_config.Column("Fin"),
-                },
-                hide_index=True
-            )
-            
-            st.markdown(f"***")
-            st.markdown(f"**TOTAL de la semaine pour {employe_selectionne} :** **{total_heures_format}**")
-            
-except Exception as e:
-    # Affiche l'erreur si elle n'a pas été gérée plus tôt
-    st.error(f"Une erreur fatale s'est produite : {e}. Assurez-vous d'avoir sauvegardé votre fichier **app.py** et d'avoir relancé l'application.")
+    df_initial = charger_donnees
