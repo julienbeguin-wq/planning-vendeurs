@@ -91,8 +91,10 @@ date_debut_str = f"{date_debut.day} {MONTHS[date_debut.month]}"
 date_fin_str = f"{date_fin.day} {MONTHS[date_fin.month]}"
 
 return f"{week_str} : du {date_debut_str} au {date_fin_str}"
+Le bloc précédent se termine ici
 
-except Exception: # LE BLOC except: se réfère au second try:
+except Exception: # Le except est mal indenté, ou il a un caractère étrange devant lui.
+
 return week_str
 # --- FIN DE LA FONCTION get_dates_for_week ---
 
