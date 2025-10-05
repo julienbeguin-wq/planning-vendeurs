@@ -21,7 +21,7 @@ COL_FIN = 'HEURE FIN'
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
 # --- CONFIGURATION D'AUTHENTIFICATION ---
-# ... (La section config reste inchangée, les hashs étant copiés)
+# ...
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] 
 
 config = {
@@ -49,21 +49,18 @@ config = {
     }
 }
 
-# --- FONCTION DE CONVERSION DE SEMAINE EN DATES ---
+# --- FONCTIONS (inchangées) ---
 
 def get_dates_for_week(week_str, year=2025):
-    """Convertit une chaîne de semaine (ex: 'S41') en dates de début et de fin (Lundi-Dimanche)."""
-    
+    # ... (fonction inchangée)
     MONTHS = {
         1: "janvier", 2: "février", 3: "mars", 4: "avril", 5: "mai", 6: "juin",
         7: "juillet", 8: "août", 9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre"
     }
-    
     try:
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
         return week_str
-
     try:
         d = date(year, 1, 4) 
         date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
@@ -74,12 +71,9 @@ def get_dates_for_week(week_str, year=2025):
     except Exception:
         return week_str
 
-# --- FONCTION DE CALCUL ---
 def calculer_heures_travaillees(df_planning):
-    """Calcule le total des heures travaillées et la durée par service."""
-    
+    # ... (fonction inchangée)
     df_planning_calc = df_planning.copy()
-
     try:
         def to_time_str_for_calc(val):
             if pd.isna(val) or val == "":
@@ -93,10 +87,8 @@ def calculer_heures_travaillees(df_planning):
                 s = int(total_seconds % 60)
                 return f"{h:02d}:{m:02d}:{s:02d}"
             return str(val)
-
         df_planning_calc['Duree_Debut'] = pd.to_timedelta(df_planning_calc[COL_DEBUT].apply(to_time_str_for_calc).str.strip())
         df_planning_calc['Duree_Fin'] = pd.to_timedelta(df_planning_calc[COL_FIN].apply(to_time_str_for_calc).str.strip())
-        
         def calculer_duree(row):
             duree = row['Duree_Fin'] - row['Duree_Debut']
             if duree < pd.Timedelta(0):
@@ -106,28 +98,21 @@ def calculer_heures_travaillees(df_planning):
             if duree < pd.Timedelta(0):
                 return pd.Timedelta(0)
             return duree
-
         df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree, axis=1)
         df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
-        
         durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
         total_duree = durees_positives.sum()
-        
         secondes_totales = total_duree.total_seconds()
         heures = int(secondes_totales // 3600)
         minutes = int((secondes_totales % 3600) // 60)
-        
         return df_planning, f"{heures}h {minutes}min"
-        
     except Exception as e:
         df_planning['Durée du service'] = pd.NaT
         return df_planning, f"Erreur de calcul: {e}"
 
-# --- FONCTION DE CHARGEMENT DES DONNÉES ---
-
 @st.cache_data
 def charger_donnees(fichier):
-    """Charge le fichier (Excel ou CSV) et nettoie les données."""
+    # ... (fonction inchangée)
     try:
         df = pd.read_excel(fichier)
     except Exception:
@@ -139,20 +124,16 @@ def charger_donnees(fichier):
             except Exception as e_final:
                 st.error(f"**ERREUR CRITIQUE : Impossible de lire le fichier de données.** Vérifiez le nom et le format du fichier.")
                 st.stop()
-    
     df.columns = df.columns.str.strip()
     df[COL_DEBUT] = df[COL_DEBUT].fillna("")
     df[COL_FIN] = df[COL_FIN].fillna("")
-
     for col in df.columns:
         if df[col].dtype == 'object' or df[col].dtype.name == 'category': 
             df[col] = df[col].astype(str).str.strip()
-            
     df = df.dropna(how='all')
     df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
     df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
     df['SEMAINE ET JOUR'] = df[COL_SEMAINE].astype(str) + ' - ' + df[COL_JOUR].astype(str)
-    
     return df
 
 
@@ -168,9 +149,12 @@ authenticator = stauth.Authenticate(
     config['cookie']['expiry_days']
 )
 
+# Ajout de la variable pour le contournement du bug de clé
+login_form_key = 'Login'
+
 # Affichage du formulaire de connexion
-# 💥 LIGNE 153 CORRIGÉE : Utilisation exclusive de l'argument nommé 'location' pour éviter les conflits
-name, authentication_status, username = authenticator.login(location='main')
+# 💥 LIGNE 173 CORRIGÉE : Utilisation de la variable pour forcer l'interprétation correcte de la clé
+name, authentication_status, username = authenticator.login(login_form_key, 'main')
 
 # --- LOGIQUE POST-CONNEXION ---
 
