@@ -8,18 +8,17 @@ import os
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
-# On force le thème de base à "light" pour garantir un arrière-plan clair
+# Le paramètre base="light" a été retiré pour corriger le TypeError.
 st.set_page_config(
     page_title="Planning CLICHY - Consultation", 
     layout="wide", 
     initial_sidebar_state="expanded", 
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}, 
-    page_icon="📅",
-    base="light" 
+    page_icon="📅"
 )
 
 
-NOM_DU_FICHIER = "RePlannings1.2.xlsx"
+NOM_DU_FICHIER = "Replannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
