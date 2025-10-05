@@ -27,6 +27,7 @@ ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIM
 
 # 2. MOTS DE PASSE CRYPTÉS (HASHÉS) - COPIÉS DIRECTEMENT (CORRECTIF FINAL)
 # 🚨🚨 REMPLACEZ CE QUI SUIT PAR LES VALEURS OBTENUES LORS DU HACHAGE LOCAL 🚨🚨
+# EXEMPLE: hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] 
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] # ⬅️ COLLES TES VALEURS ICI
 
 config = {
@@ -181,8 +182,8 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 LIGNE 184 CORRIGÉE
-name, authentication_status, username = authenticator.login('Login', location='main')
+# 💥 LIGNE 185 CORRIGÉE : Utilisation de l'argument nommé 'location' seul
+name, authentication_status, username = authenticator.login(location='main')
 
 # --- LOGIQUE POST-CONNEXION ---
 
