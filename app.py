@@ -20,7 +20,7 @@ COL_FIN = 'HEURE FIN'
 # Ordre logique des jours
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
-# 🔑 BLOC DE DÉFINITION DE 'config' (Doit être ici!)
+# 🔑 DÉFINITION DE 'config' (Doit être ici pour éviter le NameError)
 # --- CONFIGURATION D'AUTHENTIFICATION ---
 # Ces mots de passe sont hachés, assurez-vous qu'ils correspondent à vos utilisateurs
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] 
@@ -153,10 +153,10 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 CONTOURNEMENT FINAL : On stocke le résultat pour éviter le "cannot unpack NoneType"
+# 💥 CONTOURNEMENT : On stocke le résultat dans une seule variable temporaire pour éviter l'erreur d'unpacking
 auth_result = authenticator.login(location='main') 
 
-# LIGNE 155 : Affectation CONDITIONNELLE des variables
+# Affectation CONDITIONNELLE des variables
 if auth_result is not None:
     name, authentication_status, username = auth_result
 else:
@@ -167,7 +167,7 @@ else:
 
 # --- LOGIQUE POST-CONNEXION ---
 
-if st.session_state.get("authentication_status") is True: # Utilisez .get pour plus de sûreté
+if st.session_state.get("authentication_status") is True: 
     # L'utilisateur est connecté
 
     # 1. Affichage du Header personnalisé et du bouton de déconnexion
