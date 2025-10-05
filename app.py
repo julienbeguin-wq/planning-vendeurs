@@ -7,11 +7,20 @@ import os
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
-# TITRE DE L'ONGLET DU NAVIGATEUR
-st.set_page_config(page_title="Planning CLICHY - Consultation", layout="wide")
+# TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
+# page_icon='📅' ajoute une icône de calendrier
+# initial_sidebar_state="expanded" garantit que la barre latérale est visible par défaut
+# menu_items retire les options "Get Help" et "Report a bug" pour une apparence plus professionnelle
+st.set_page_config(
+    page_title="Planning CLICHY - Consultation", 
+    layout="wide", 
+    initial_sidebar_state="expanded", 
+    menu_items={'Get Help': None, 'Report a bug': None, 'About': None}, 
+    page_icon="📅"
+)
 
 
-NOM_DU_FICHIER = "RePlannings1.2.xlsx"
+NOM_DU_FICHIER = "planningss.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -207,6 +216,7 @@ else:
         
         if os.path.exists(logo_path):
             try:
+                # Utilise st.logo si Streamlit le supporte, sinon st.sidebar.image
                 st.logo(logo_path, icon_image=logo_path) 
             except Exception:
                  st.sidebar.image(logo_path, caption='Logo', use_column_width=True)
@@ -269,7 +279,6 @@ else:
             # --- 1. DÉTAIL SEMAINE (Sélection) EN PREMIER ---
             st.sidebar.header("Détail Semaine") 
             
-            # On cherche l'indice de la semaine la plus récente pour la présélection
             semaine_selectionnee_formattee = st.sidebar.selectbox(
                 'Sélectionnez la semaine', 
                 liste_semaines_formatees
