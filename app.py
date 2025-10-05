@@ -21,7 +21,7 @@ COL_FIN = 'HEURE FIN'
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
 # --- CONFIGURATION D'AUTHENTIFICATION ---
-# ...
+# ... (inchangé)
 hashed_passwords = ['$2b$12$ABC...XYZ', '$2b$12$DEF...UVW'] 
 
 config = {
@@ -50,6 +50,7 @@ config = {
 }
 
 # --- FONCTIONS (inchangées) ---
+
 def get_dates_for_week(week_str, year=2025):
     MONTHS = {
         1: "janvier", 2: "février", 3: "mars", 4: "avril", 5: "mai", 6: "juin",
@@ -108,7 +109,7 @@ def calculer_heures_travaillees(df_planning):
 
 @st.cache_data
 def charger_donnees(fichier):
-    # ... (fonction inchangée)
+    # ... (inchangé)
     try:
         df = pd.read_excel(fichier)
     except Exception:
@@ -150,8 +151,8 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 LIGNE 154 CORRIGÉE : Utilisation de 'unrendered' pour forcer l'affichage manuel
-name, authentication_status, username = authenticator.login('Login', location='unrendered')
+# 💥 LIGNE 154 CORRIGÉE : Utilisation exclusive de l'argument nommé 'location' en 'unrendered'
+name, authentication_status, username = authenticator.login(location='unrendered')
 
 
 # --- LOGIQUE POST-CONNEXION ---
@@ -257,5 +258,5 @@ elif st.session_state["authentication_status"] is False:
 elif st.session_state["authentication_status"] is None:
     # L'utilisateur n'a pas encore entré d'informations
     st.markdown("<h1 style='text-align: center;'>Connexion</h1>", unsafe_allow_html=True)
-    st.empty() # Nécessaire pour forcer le rendu du formulaire
+    st.empty() 
     st.warning('Veuillez entrer votre identifiant et mot de passe pour accéder.')
