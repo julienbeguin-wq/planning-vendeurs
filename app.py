@@ -6,12 +6,13 @@ import os
 import calendar 
 import io 
 import re 
+from collections import defaultdict
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
 st.set_page_config(
-    page_title="Planning CLICHY - Consultation", 
+    page_title="CLICHY Consultation Planning", 
     layout="wide", 
     initial_sidebar_state="expanded", 
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}, 
@@ -44,6 +45,12 @@ COLONNES_OBLIGATOIRES = [COL_EMPLOYE, COL_SEMAINE, COL_JOUR, COL_DEBUT, COL_FIN]
 # Ordre logique des jours
 ORDRE_JOURS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE']
 
+# Mappage pour le calendrier
+JOURS_CALENDAR = {
+    'LUNDI': 0, 'MARDI': 1, 'MERCREDI': 2, 'JEUDI': 3, 'VENDREDI': 4, 'SAMEDI': 5, 'DIMANCHE': 6
+}
+JOURS_CALENDAR_INVERSE = {v: k for k, v in JOURS_CALENDAR.items()}
+
 # --- 2. FONCTIONS DE TRAITEMENT ---
 
 def formater_duree(td):
@@ -61,7 +68,6 @@ def formater_duree(td):
 def get_dates_for_week(week_str, year, format_type='full'):
     """Calcule la plage de dates pour la semaine, en utilisant l'année fournie."""
     try:
-        # Tente d'extraire le numéro de semaine. Exemple: S42 -> 42
         week_match = re.search(r'S(\d+)', week_str.upper())
         if not week_match:
             return week_str if format_type == 'full' else "Erreur SEMAINE"
@@ -78,7 +84,6 @@ def get_dates_for_week(week_str, year, format_type='full'):
         date_debut_annee_iso = d + timedelta(days=-d.weekday())
 
         # Calcule le début de la semaine souhaitée
-        # Le numéro de semaine ISO commence par 1.
         date_debut = date_debut_annee_iso + timedelta(weeks=week_num - 1)
         date_fin = date_debut + timedelta(days=6)
         
@@ -88,7 +93,9 @@ def get_dates_for_week(week_str, year, format_type='full'):
         if format_type == 'full':
             return f"{week_str} ({year}): du {date_debut_str} au {date_fin_str}"
         elif format_type == 'start_date':
-             return date_debut # Retourne l'objet date pour le calcul des jours
+             return date_debut 
+        elif format_type == 'month': # NOUVEAU: Retourne le mois et l'année du début de semaine
+             return (date_debut.month, date_debut.year)
         else: # only_dates
             return f"Semaine {week_str} ({year}) : du {date_debut_str} au {date_fin_str}"
             
@@ -119,7 +126,6 @@ def calculer_duree_brute(row):
     
     duree = row['Duree_Fin'] - row['Duree_Debut']
     
-    # Gestion simple du travail de nuit (heure de fin < heure de début)
     if duree < pd.Timedelta(0): 
         duree += pd.Timedelta(days=1)
     
@@ -167,7 +173,6 @@ def extraire_annee(semaine_str):
 @st.cache_data
 def charger_donnees(fichier):
     """Charge le fichier, vérifie les colonnes, nettoie les données et pré-calcule les totaux."""
-    # (Le chargement et le calcul des totaux restent inchangés)
     if not os.path.exists(fichier):
         st.error(f"**ERREUR CRITIQUE DE FICHIER :** Le fichier '{fichier}' est introuvable. Assurez-vous qu'il est dans le même dossier que 'app.py' et que le nom est exact.")
         st.stop()
@@ -213,19 +218,15 @@ def charger_donnees(fichier):
     
     return df
 
-# NOUVELLE FONCTION DE VÉRIFICATION
 def verifier_donnees(df_semaine):
     """Vérifie la logique des données de planning et retourne une liste d'avertissements."""
     avertissements = []
     df_travail = df_semaine[df_semaine['Durée du service'] > pd.Timedelta(0)].copy()
     
     # 1. Vérification : Heure de début après Heure de fin (sans compter les nuits)
-    # On se concentre sur les services de jour simples (début < fin)
-    
-    # Pour un service de jour, on s'attend à ce que Duree_Brute soit < 1 jour (86400s)
     erreurs_ordre = df_travail[
-        (df_travail['Duree_Brute'] < pd.Timedelta(0)) & # Durée brute négative
-        (df_travail['Duree_Brute'] > pd.Timedelta(days=-1)) # Et ce n'est pas un dépassement de minuit
+        (df_travail['Duree_Brute'] < pd.Timedelta(0)) & 
+        (df_travail['Duree_Brute'] > pd.Timedelta(days=-1)) 
     ]
     
     if not erreurs_ordre.empty:
@@ -242,6 +243,88 @@ def verifier_donnees(df_semaine):
     
     return avertissements
 
+# NOUVELLE FONCTION CALENDRIER
+def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
+    """Affiche un calendrier HTML stylisé dans la barre latérale."""
+    
+    # Déterminer le statut pour chaque jour du mois
+    statut_par_jour = defaultdict(lambda: 'Repos')
+    
+    # 1. Calculer les jours de travail
+    df_mois = df_employe[
+        (df_employe['ANNEE'] == annee) & 
+        (df_employe['DATE'].dt.month == mois)
+    ].copy()
+    
+    df_mois['Statut'] = df_mois.apply(
+        lambda row: "École" if "ECOLE" in str(row[COL_DEBUT]).upper() or "ECOLE" in str(row[COL_FIN]).upper() 
+        else ("Travail" if row['Durée du service'] > pd.Timedelta(0) else "Repos"),
+        axis=1
+    )
+    
+    for _, row in df_mois.iterrows():
+        jour = row['DATE'].day
+        statut_par_jour[jour] = row['Statut']
+
+
+    # 2. Préparer les styles
+    styles = {
+        'Travail': 'background-color: #CCFFCC; font-weight: bold;', # Vert clair
+        'Repos': 'background-color: #F0F0F0;', # Gris clair
+        'École': 'background-color: #DDEEFF; color: #0000FF;', # Bleu clair
+        'Aujourdhui': 'border: 2px solid #FF0000; font-weight: bold; padding: 2px;', # Bordure rouge
+        'Anniversaire': 'background-color: #FFFF99; font-weight: bold;', # Jaune
+        'Default': 'background-color: white;'
+    }
+    
+    # 3. Générer le calendrier HTML
+    cal = calendar.Calendar(firstweekday=calendar.MONDAY)
+    html_calendar = f"<h4>{calendar.month_name[mois].title()} {annee}</h4>"
+    
+    # En-têtes des jours (Lun, Mar, ...)
+    html_calendar += "<table style='width: 100%; font-size: 12px; text-align: center; border-collapse: collapse;'>"
+    html_calendar += "<thead><tr>"
+    for day_name in ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]:
+        html_calendar += f"<th>{day_name}</th>"
+    html_calendar += "</tr></thead><tbody>"
+
+    aujourdhui = date.today()
+    
+    for week in cal.monthdays2calendar(annee, mois):
+        html_calendar += "<tr>"
+        for day_num, weekday in week:
+            if day_num == 0:
+                html_calendar += "<td style='background-color: #E8E8E8;'></td>" # Jour vide (gris)
+                continue
+            
+            day_date = date(annee, mois, day_num)
+            day_status = statut_par_jour[day_num]
+            day_style = styles.get(day_status, styles['Default'])
+            
+            # Application des styles spéciaux
+            if day_date == aujourdhui:
+                day_style += styles['Aujourdhui']
+                
+            if employe_connecte in ANNIVERSAIRES:
+                mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
+                if day_date.month == mois_anniv and day_date.day == jour_anniv:
+                    day_style = styles['Anniversaire']
+            
+            html_calendar += f"<td style='{day_style}; border: 1px solid #DDDDDD;'>{day_num}</td>"
+        html_calendar += "</tr>"
+    
+    html_calendar += "</tbody></table>"
+    
+    sidebar.markdown(html_calendar, unsafe_allow_html=True)
+    sidebar.markdown("""
+        <div style='font-size: 10px; margin-top: 10px;'>
+        <span style='background-color:#CCFFCC;'>&nbsp;&nbsp;&nbsp;</span> Travaillé &nbsp; 
+        <span style='background-color:#F0F0F0;'>&nbsp;&nbsp;&nbsp;</span> Repos &nbsp;
+        <span style='background-color:#DDEEFF;'>&nbsp;&nbsp;&nbsp;</span> École
+        </div>
+    """, unsafe_allow_html=True)
+
+
 # --- 3. LOGIQUE D'AUTHENTIFICATION ---
 USERNAMES = ["JULIEN", "HOUDA", "MOUNIA", "ADAM"]
 PASSWORD = "clichy8404"
@@ -252,7 +335,6 @@ if 'username' not in st.session_state:
     st.session_state['username'] = None
 
 def login():
-    # (Le corps de la fonction login reste inchangé)
     st.markdown("<h1 style='text-align: center;'>Connexion à l'application Planning</h1>", unsafe_allow_html=True)
     st.warning("Veuillez entrer votre identifiant et mot de passe pour accéder.")
 
@@ -270,7 +352,6 @@ def login():
                 st.error("Identifiant ou mot de passe incorrect.")
 
 # --- FONCTION DE STYLISATION ---
-# (La fonction appliquer_style reste inchangée)
 def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     """Applique une couleur de fond à la ligne en fonction du statut (Repos, École, Anniversaire)."""
     styles = [''] * len(row) 
@@ -284,15 +365,17 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     except Exception:
         return styles
 
-    # Anniversaire 🥳 (avec l'information de votre anniversaire: 18 octobre)
+    # Anniversaire 🥳
     if employe_connecte in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
         if date_ligne.month == mois_anniv and date_ligne.day == jour_anniv:
             return ['background-color: #FFFF99'] * len(row) 
             
+    # Aujourd'hui 🟢
     if date_ligne == date.today():
         return ['background-color: #CCFFCC'] * len(row) 
         
+    # Styles secondaires
     if statut == "Repos":
         return ['background-color: #F0F0F0'] * len(row) 
     
@@ -302,7 +385,6 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     return styles
     
 # --- FONCTION D'EXPORT ---
-# (La fonction to_excel_buffer reste inchangée)
 def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_selectionnee_brute, annee_selectionnee):
     """Crée un buffer Excel en mémoire pour le téléchargement."""
     output = io.BytesIO()
@@ -363,6 +445,7 @@ else:
         st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         aujourdhui = date.today()
         
+        # Anniversaire
         if employe_connecte in ANNIVERSAIRES:
             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
             if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
@@ -428,33 +511,37 @@ else:
             )
             
             semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
-            st.sidebar.markdown("---")
             
-            # --- SYNTHÈSE GLOBALE (Reste inchangée)
-            if not df_semaines_travaillees.empty:
-                st.sidebar.subheader(f"Synthèse {annee_selectionnee}")
-                df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
-                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=True) 
-                
-                df_synthese['Heures_Secondes'] = df_synthese['TEMPS_TOTAL_SEMAINE'].dt.total_seconds() / 3600
-                
-                st.sidebar.bar_chart(df_synthese, x=COL_SEMAINE, y='Heures_Secondes', height=200)
-                st.sidebar.markdown("**Heures travaillées (net)**")
-                
-                df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False) 
-                df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
-                
-                st.sidebar.dataframe(
-                    df_synthese[[COL_SEMAINE, 'Total Heures']],
-                    use_container_width=True,
-                    column_config={"Total Heures": st.column_config.Column("Total (net)", width="small")},
-                    hide_index=True
-                )
-                st.sidebar.markdown("---")
+            # --- CALCUL DU MOIS POUR LE CALENDRIER ---
+            mois_selectionne, annee_calendrier = get_dates_for_week(
+                semaine_selectionnee_brute, 
+                annee_selectionnee, 
+                format_type='month'
+            )
+            
+            # 4.3 AFFICHAGE DU CALENDRIER
+            st.sidebar.markdown("---")
+            st.sidebar.subheader("Vue Mensuelle")
+            
+            # Ajout de la colonne DATE nécessaire pour le filtre du calendrier
+            df_employe_filtre['DATE'] = df_employe_filtre.apply(
+                lambda row: get_dates_for_week(row[COL_SEMAINE], row['ANNEE'], format_type='start_date') + 
+                timedelta(days=ORDRE_JOURS.index(row[COL_JOUR])), axis=1
+            )
+            
+            # IMPORTANT: Afficher le calendrier avec le mois et l'année de la semaine sélectionnée
+            afficher_calendrier(
+                df_employe_filtre, 
+                mois_selectionne, 
+                annee_calendrier, 
+                employe_connecte, 
+                st.sidebar
+            )
+            st.sidebar.markdown("---")
             
             # -------------------------------------------------
 
-            # 4.4 Affichage du planning
+            # 4.4 Affichage du planning principal
             if employe_selectionne and semaine_selectionnee_brute:
                 
                 date_debut_semaine = get_dates_for_week(semaine_selectionnee_brute, annee_selectionnee, format_type='start_date')
@@ -489,7 +576,7 @@ else:
                     lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
                 )
                 
-                # --- NOUVEAU : VÉRIFICATION DES DONNÉES ET AFFICHAGE DES ALERTES ---
+                # --- VÉRIFICATION DES DONNÉES ET AFFICHAGE DES ALERTES ---
                 avertissements = verifier_donnees(df_resultat)
                 if avertissements:
                     with st.expander("⚠️ **Vérifications de cohérence du planning :**", expanded=True):
