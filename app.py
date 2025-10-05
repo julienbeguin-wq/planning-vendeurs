@@ -293,8 +293,8 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, output_contai
     
     # Utilisation des informations mémorisées (date d'anniversaire)
     anniversaire_julien = False
-    if employe_connecte == "JULIEN" and annee == 2025: # Vérifier l'année de l'anniversaire
-        # Note: L'info '2025-10-03' semble être une date de mémorisation, l'anniversaire est le 18 octobre.
+    if employe_connecte == "JULIEN": 
+        # L'anniversaire est le 18 octobre
         mois_anniv, jour_anniv = 10, 18
         if mois == mois_anniv:
             anniversaire_julien = True
@@ -419,7 +419,6 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
             worksheet.write('A10', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
             
     except ImportError:
-         # Ce message est essentiel en cas d'erreur de module (comme montré dans votre capture d'écran)
          st.error("Erreur d'exportation : Le module 'xlsxwriter' est manquant. Veuillez l'installer (`pip install xlsxwriter`) pour activer le téléchargement Excel.")
          return None 
          
@@ -458,13 +457,17 @@ else:
         st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         aujourdhui = date.today()
         
-        # Anniversaire
+        # Anniversaire (utilise l'info stockée pour Julien)
+        anniv_message = ""
         if employe_connecte in ANNIVERSAIRES:
-            mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
-            if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
-                st.sidebar.balloons() 
-                st.sidebar.success("Joyeux Anniversaire ! 🎂")
+             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
+             if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
+                 st.sidebar.balloons() 
+                 anniv_message = "Joyeux Anniversaire ! 🎂"
         
+        if anniv_message:
+             st.sidebar.success(anniv_message)
+
         if st.sidebar.button("Déconnexion"):
             st.session_state['authenticated'] = False
             st.session_state['username'] = None
@@ -479,16 +482,28 @@ else:
 
         df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         
-        # --- DÉTECTION ET SÉLECTION DE LA PÉRIODE ---
         
+        # --- DÉTECTION ET SÉLECTION DE L'ANNÉE (PÉRIODE GLOBALE) ---
         annees_disponibles = sorted(df_employe_filtre['ANNEE'].unique().tolist(), reverse=True)
         if not annees_disponibles:
              annees_disponibles = [date.today().year] 
 
-        annee_selectionnee = annees_disponibles[0] # Default to most recent year for consistency
+        # Initialisation par défaut à l'année la plus récente
+        annee_defaut = annees_disponibles[0] 
+
+        st.sidebar.header("Période Globale")
+        annee_selectionnee = st.sidebar.selectbox(
+            'Année du Planning',
+            annees_disponibles,
+            index=annees_disponibles.index(annee_defaut) if annee_defaut in annees_disponibles else 0
+        )
+        st.sidebar.markdown("---")
         
         df_employe_annee = df_employe_filtre[df_employe_filtre['ANNEE'] == annee_selectionnee].copy()
 
+
+        # --- DÉTECTION ET SÉLECTION DE LA SEMAINE (DÉTAIL SEMAINE) ---
+        
         df_semaines_travaillees = df_employe_annee[
             df_employe_annee['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)
         ].drop_duplicates(subset=[COL_SEMAINE])
@@ -497,11 +512,9 @@ else:
         semaine_selectionnee_brute = None
         
         if not liste_semaines_brutes:
-            # Si aucune semaine trouvée pour l'année, on affiche un message dans le corps principal
             st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}** en {annee_selectionnee}.")
             st.stop()
         
-        # Calcul de la semaine actuelle pour la présélection
         semaine_actuelle_num = aujourdhui.isocalendar()[1]
         semaine_actuelle_brute = f"S{semaine_actuelle_num:02d}" 
         
@@ -513,7 +526,7 @@ else:
         liste_semaines_formatees = [get_dates_for_week(s, annee_selectionnee, format_type='full') for s in liste_semaines_brutes]
         semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
         
-        # Sélecteur de semaine (dans la sidebar, pour le calcul du total d'heures)
+        
         st.sidebar.header("Détail Semaine") 
         semaine_selectionnee_formattee = st.sidebar.selectbox(
             'Sélectionnez la semaine', 
@@ -523,28 +536,19 @@ else:
         
         semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
         
-        # Filtre pour la semaine sélectionnée (utilisé pour les calculs de total)
+        # --- CALCUL ET AFFICHAGE DU TOTAL D'HEURES NETTES ---
+        
+        # Calcul du total d'heures pour la semaine sélectionnée
         df_filtre = df_employe_annee[df_employe_annee[COL_SEMAINE] == semaine_selectionnee_brute].copy()
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
         
-        # --- NOUVEAU BLOC : TOTAL HEURES DANS LA BARRE LATÉRALE (AU-DESSUS DE LA SÉLECTION D'ANNÉE) ---
+        st.sidebar.markdown("### Total d'heures nettes")
+        st.sidebar.markdown(f"**Semaine {semaine_selectionnee_brute} ({annee_selectionnee}):**")
+        # Utilisation de style CSS pour une grande police
+        st.sidebar.markdown(f"<h2 style='text-align: center; color: #1E90FF; margin-top: -10px;'>{total_heures_format}h</h2>", unsafe_allow_html=True)
+        st.sidebar.markdown("<p style='text-align: center; font-size: small; margin-top: -15px;'>*Une heure de pause déduite par jour travaillé*</p>", unsafe_allow_html=True)
         
-        st.sidebar.markdown("---")
-        st.sidebar.markdown(f"**Total d'heures nettes pour la semaine sélectionnée ({semaine_selectionnee_brute}):**")
-        st.sidebar.markdown(f"<h2 style='text-align: center; color: #4CAF50;'>{total_heures_format}h</h2>", unsafe_allow_html=True)
-        st.sidebar.markdown("**(*Pause déduite*)**", unsafe_allow_html=True)
-        st.sidebar.markdown("---")
-
-
-        # --- SÉLECTION DE L'ANNÉE (MAINTENANT EN DESSOUS DU TOTAL DANS LA BARRE LATÉRALE) ---
-        st.sidebar.header("Période Globale")
-        annee_selectionnee = st.sidebar.selectbox(
-            'Année du Planning',
-            annees_disponibles,
-            index=annees_disponibles.index(annee_selectionnee) if annee_selectionnee in annees_disponibles else 0
-        )
-        
-        st.sidebar.markdown("---")
+        st.sidebar.markdown("---") # Séparateur final
 
         
         # --- CALCUL DU MOIS POUR LE CALENDRIER ---
@@ -606,7 +610,6 @@ else:
 
             st.subheader(f"Planning pour **{employe_selectionne.title()}**")
             
-            # L'affichage de la métrique a été déplacé dans la barre latérale.
             st.markdown("**Une heure de pause méridienne est déduite chaque jour de service (si la durée brute dépasse 1h).**")
             
             # Bouton de téléchargement
