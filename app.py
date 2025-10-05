@@ -365,8 +365,6 @@ def afficher_notice():
         st.markdown("""
         * <span style='background-color: #CCFFCC; padding: 2px;'>🟢 Jour en Vert :</span> C'est **Aujourd'hui**.
         * <span style='background-color: #FFFF99; padding: 2px;'>🟡 Jour en Jaune :</span> Votre **Anniversaire** 🎂.
-        * <span style='background-color: #F0F0F0; padding: 2px;'>⚪ Jour en Gris :</span> Jour de **Repos** (Temps de service nul).
-        * <span style='background-color: #DDEEFF; padding: 2px;'>🔵 Jour en Bleu clair :</span> Jour à l'**École**.
         """, unsafe_allow_html=True)
     
     with col2:
