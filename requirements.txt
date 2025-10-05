@@ -5,3 +5,4 @@ PyYAML
 streamlit-authenticator>=0.4.2
 passlib
 openpyxl
+xlsxwriter
