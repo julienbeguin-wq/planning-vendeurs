@@ -99,8 +99,8 @@ def convertir_heure_en_timedelta(val):
     if pd.isna(val) or val == "":
         return pd.NaT
     if isinstance(val, str) and "ECOLE" in val.upper():
-         return pd.NaT
-         
+           return pd.NaT
+            
     if isinstance(val, (time, pd.Timestamp)):
         return pd.to_timedelta(str(val))
     elif isinstance(val, (int, float)) and 0 <= val <= 1: 
@@ -293,15 +293,10 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, output_contai
     
     # Utilisation des informations mémorisées (date d'anniversaire)
     anniversaire_julien = False
-    if employe_connecte == "JULIEN": 
-        # L'anniversaire est le 18 octobre
-        mois_anniv, jour_anniv = 10, 18
-        if mois == mois_anniv:
-            anniversaire_julien = True
-    elif employe_connecte in ANNIVERSAIRES:
+    if employe_connecte in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
         if mois == mois_anniv:
-             anniversaire_julien = True
+            anniversaire_julien = True
 
     for week in cal.monthdays2calendar(annee, mois):
         html_calendar += "<tr>"
@@ -329,10 +324,16 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, output_contai
     output_container.markdown(html_calendar, unsafe_allow_html=True)
     
 
-
 # --- 3. LOGIQUE D'AUTHENTIFICATION ---
-USERNAMES = ["JULIEN", "HOUDA", "MOUNIA", "ADAM"]
-PASSWORD = "clichy8404"
+# Dictionnaire de MAPPING : Identifiant (UPPER) -> Mot de passe
+PASSWORDS = {
+    "MOUNIA": "clichy2002",
+    "ADAM": "clichy1402",
+    "HOUDA": "clichy2701",
+    "JULIEN": "1810", 
+}
+USERNAMES = PASSWORDS.keys() # La liste des utilisateurs est déduite du dictionnaire
+
 
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
@@ -350,7 +351,8 @@ def login():
         submitted = st.form_submit_button("Se connecter")
 
         if submitted:
-            if username_input in USERNAMES and password_input == PASSWORD:
+            # Vérifie si l'utilisateur existe ET si le mot de passe correspond
+            if username_input in PASSWORDS and password_input == PASSWORDS[username_input]:
                 st.session_state['authenticated'] = True
                 st.session_state['username'] = username_input
                 st.rerun() 
@@ -419,9 +421,9 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
             worksheet.write('A10', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
             
     except ImportError:
-         st.error("Erreur d'exportation : Le module 'xlsxwriter' est manquant. Veuillez l'installer (`pip install xlsxwriter`) pour activer le téléchargement Excel.")
-         return None 
-         
+          st.error("Erreur d'exportation : Le module 'xlsxwriter' est manquant. Veuillez l'installer (`pip install xlsxwriter`) pour activer le téléchargement Excel.")
+          return None 
+          
     output.seek(0)
     return output
 
@@ -443,7 +445,7 @@ else:
             try:
                 st.logo(logo_path, icon_image=logo_path) 
             except Exception:
-                 st.sidebar.image(logo_path, caption='Logo', use_column_width=True)
+                st.sidebar.image(logo_path, caption='Logo', use_column_width=True)
         else:
             st.sidebar.warning(f"Fichier de logo non trouvé : {NOM_DU_LOGO}") 
 
@@ -460,8 +462,8 @@ else:
         # Anniversaire (utilise l'info stockée pour Julien)
         anniv_message = ""
         if employe_connecte in ANNIVERSAIRES:
-             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
-             if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
+            mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
+            if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
                  st.sidebar.balloons() 
                  anniv_message = "Joyeux Anniversaire ! 🎂"
         
