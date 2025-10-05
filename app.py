@@ -4,7 +4,6 @@ from datetime import date, timedelta, time
 import numpy as np
 import io
 import os 
-# Il est crucial d'avoir xlsxwriter installé pour le bouton de téléchargement
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
@@ -136,39 +135,6 @@ def calculer_heures_travaillees(df_planning):
     
     return df_planning, total_heures_format
 
-def to_excel(df, employe, semaine):
-    """Convertit un DataFrame en un objet BytesIO pour le téléchargement Excel."""
-    output = io.BytesIO()
-    # Utilisation du moteur xlsxwriter (nécessite 'pip install xlsxwriter')
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    
-    # Prépare les données pour l'export 
-    df_export = df.rename(columns={
-        'NOM VENDEUR': 'Employé',
-        'SEMAINE': 'Semaine',
-        'JOUR': 'Jour',
-        'HEURE DEBUT': 'Début',
-        'HEURE FIN': 'Fin',
-        'Durée du service': 'Durée (net)'
-    })
-    
-    # Sélectionne les colonnes pour l'export
-    df_final = df_export[['Jour', 'Début', 'Fin', 'Durée (net)', 'Statut']].copy()
-
-    # Formate la durée nette pour l'affichage dans Excel
-    df_final['Durée (net)'] = df_final['Durée (net)'].apply(formater_duree)
-
-    # Écrit le DataFrame dans l'objet Excel
-    # NOM DE FEUILLE SIMPLIFIÉ POUR ÉVITER LES ERREURS SYSTÈME (comme rencontrées sur Mac)
-    df_final.to_excel(writer, index=False, sheet_name="Planning_Semaine") 
-    
-    # Sauvegarde
-    writer.close()
-    
-    # Retourne le contenu du fichier
-    return output.getvalue()
-
-
 @st.cache_data
 def charger_donnees(fichier):
     """Charge le fichier, vérifie les colonnes, nettoie les données et pré-calcule les totaux."""
@@ -281,7 +247,7 @@ else:
         # MESSAGE DE BIENVENUE ET DÉCONNEXION
         st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         
-        # LOGIQUE D'ANNIVERSAIRE
+        # LOGIQUE D'ANNIVERSAIRE (MISE À JOUR)
         aujourdhui = date.today()
         
         # Vérifie si l'utilisateur connecté est dans la liste des anniversaires ET si c'est aujourd'hui
@@ -447,18 +413,6 @@ else:
                     label=f"Total d'heures calculées pour la semaine {semaine_selectionnee_brute}", 
                     value=f"{total_heures_format}h"
                 )
-                
-                # BOUTON DE TÉLÉCHARGEMENT
-                excel_data = to_excel(df_resultat, employe_selectionne, semaine_selectionnee_brute)
-                
-                st.download_button(
-                    label="💾 Télécharger ce Planning (Excel)",
-                    data=excel_data,
-                    file_name=f"Planning_{employe_selectionne.upper()}_{semaine_selectionnee_brute}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-                
                 st.markdown("---")
                 
                 st.dataframe(
