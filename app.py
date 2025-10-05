@@ -20,6 +20,15 @@ st.set_page_config(
 NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
+# LISTE DES ANNIVERSAIRES 🎂
+# Format : "NOM VENDEUR EN MAJUSCULE" : (Mois, Jour)
+ANNIVERSAIRES = {
+    "MOUNIA": (2, 20),
+    "ADAM": (2, 14),
+    "HOUDA": (1, 27),
+    "JULIEN": (10, 18), 
+}
+
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
 COL_EMPLOYE = 'NOM VENDEUR'
 COL_SEMAINE = 'SEMAINE'
@@ -205,7 +214,7 @@ else:
     # Le code ci-dessous ne s'exécute que si l'utilisateur est connecté
     try:
         # 4.1 Affichage du titre principal
-        # TITRE AGRANDI : Ajout de style CSS pour augmenter la taille de la police à 48px
+        # TITRE AGRANDI
         st.markdown("<h1 style='text-align: center; font-size: 48px;'>PLANNING CLICHY</h1>", unsafe_allow_html=True) 
         st.markdown("---") 
         
@@ -233,16 +242,20 @@ else:
 
         # 4.3 Barre latérale et menus déroulants
         
+        employe_connecte = st.session_state['username']
+
         # MESSAGE DE BIENVENUE ET DÉCONNEXION
-        st.sidebar.markdown(f"**👋 Bienvenue, {st.session_state['username'].title()}**")
+        st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         
-        # AJOUT PERSONNALISÉ : MESSAGE D'ANNIVERSAIRE (Utilisation de l'information personnelle)
+        # LOGIQUE D'ANNIVERSAIRE (MISE À JOUR)
         aujourdhui = date.today()
-        # VÉRIFIER L'ANNIVERSAIRE (OCTOBRE 18)
-        if aujourdhui.month == 10 and aujourdhui.day == 18: 
-            # Si c'est aujourd'hui et si l'utilisateur est bien l'employé 'JULIEN' (exemple basé sur vos captures)
-            if st.session_state['username'].upper() == "JULIEN" and aujourdhui.year == 2025:
-                # Je sais que l'utilisateur a indiqué son anniversaire le 18 octobre.
+        
+        # Vérifie si l'utilisateur connecté est dans la liste des anniversaires ET si c'est aujourd'hui
+        if employe_connecte in ANNIVERSAIRES:
+            mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
+            
+            if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
+                # Si c'est aujourd'hui
                 st.sidebar.balloons() 
                 st.sidebar.success("Joyeux Anniversaire ! 🎂")
         
@@ -254,7 +267,7 @@ else:
         st.sidebar.markdown("---")
         
         # L'employé sélectionné est celui qui est connecté (pour la sécurité)
-        employe_selectionne = st.session_state['username']
+        employe_selectionne = employe_connecte
         
         if employe_selectionne not in liste_employes:
             st.error(f"Erreur : Le prénom de connexion ({employe_selectionne}) ne correspond pas à un employé dans le fichier de planning.")
@@ -283,7 +296,7 @@ else:
             liste_semaines_formatees = [get_dates_for_week(s, format_type='full') for s in liste_semaines_brutes]
             semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
             
-            # --- LOGIQUE D'AMÉLIORATION B: SÉLECTION AUTOMATIQUE DE LA SEMAINE ACTUELLE ---
+            # --- SÉLECTION AUTOMATIQUE DE LA SEMAINE ACTUELLE ---
             semaine_actuelle_num = date.today().isocalendar()[1]
             # Formate le numéro de semaine avec un 'S' et deux chiffres (ex: 'S41')
             semaine_actuelle_brute = f"S{semaine_actuelle_num:02d}" 
@@ -320,18 +333,16 @@ else:
                 df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
                 df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=True) # Tri par ordre chronologique pour le graphique
                 
-                # --- NOUVEAU CODE : AFFICHAGE DU GRAPHIQUE ---
                 # Convertir Timedelta en secondes puis en heures pour le graphique (facile à tracer)
                 df_synthese['Heures_Secondes'] = df_synthese['TEMPS_TOTAL_SEMAINE'].dt.total_seconds() / 3600
                 
                 st.sidebar.bar_chart(
                     df_synthese, 
-                    x=COL_SEMAINE, # Colonne SEMAINE pour l'axe X
-                    y='Heures_Secondes', # Colonne en Heures pour l'axe Y
-                    height=200 # Réduire la hauteur pour que cela tienne mieux dans la sidebar
+                    x=COL_SEMAINE, 
+                    y='Heures_Secondes', 
+                    height=200 
                 )
                 st.sidebar.markdown("**Heures travaillées (net)**")
-                # --- FIN NOUVEAU CODE ---
                 
                 df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False) # Tri inverse pour le tableau
                 
