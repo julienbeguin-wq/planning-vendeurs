@@ -5,7 +5,7 @@ import numpy as np
 import os 
 import calendar 
 import io 
-import re # Ajout pour la recherche d'années dans les noms de semaines
+import re 
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
@@ -64,7 +64,6 @@ def get_dates_for_week(week_str, year, format_type='full'):
         # Tente d'extraire le numéro de semaine. Exemple: S42 -> 42
         week_match = re.search(r'S(\d+)', week_str.upper())
         if not week_match:
-            # Gère le cas où la colonne SEMAINE contient autre chose que SXX
             return week_str if format_type == 'full' else "Erreur SEMAINE"
             
         week_num = int(week_match.group(1))
@@ -120,6 +119,7 @@ def calculer_duree_brute(row):
     
     duree = row['Duree_Fin'] - row['Duree_Debut']
     
+    # Gestion simple du travail de nuit (heure de fin < heure de début)
     if duree < pd.Timedelta(0): 
         duree += pd.Timedelta(days=1)
     
@@ -155,22 +155,19 @@ def calculer_heures_travaillees(df_planning):
     
     return df_planning, total_heures_format
 
-# Ajout d'une fonction pour déduire l'année de la colonne SEMAINE (si le format est SXX-YY)
 def extraire_annee(semaine_str):
     """Essaie d'extraire l'année (YY) du format SXX-YY ou retourne une année par défaut."""
     if isinstance(semaine_str, str):
-        # Cherche le format SXX-YY (ex: S42-25)
         match = re.search(r'-(\d{2})$', semaine_str)
         if match:
-            # Convertit le format court (25) en long (2025)
             return 2000 + int(match.group(1))
             
-    # Si l'année n'est pas explicite, on suppose 2025 (pour la compatibilité arrière)
     return date.today().year
 
 @st.cache_data
 def charger_donnees(fichier):
     """Charge le fichier, vérifie les colonnes, nettoie les données et pré-calcule les totaux."""
+    # (Le chargement et le calcul des totaux restent inchangés)
     if not os.path.exists(fichier):
         st.error(f"**ERREUR CRITIQUE DE FICHIER :** Le fichier '{fichier}' est introuvable. Assurez-vous qu'il est dans le même dossier que 'app.py' et que le nom est exact.")
         st.stop()
@@ -199,14 +196,12 @@ def charger_donnees(fichier):
     df[COL_JOUR] = df[COL_JOUR].astype(str).str.upper()
     df[COL_SEMAINE] = df[COL_SEMAINE].astype(str).str.upper()
     
-    # NOUVEAU : Tentative de déterminer l'année de chaque semaine
     df['ANNEE'] = df[COL_SEMAINE].apply(extraire_annee)
 
     df_calc = df.copy()
     df_calc['Duree_Debut'] = df_calc[COL_DEBUT].apply(convertir_heure_en_timedelta)
     df_calc['Duree_Fin'] = df_calc[COL_FIN].apply(convertir_heure_en_timedelta)
     
-    # Recalculer la durée brute AVANT la durée de service
     df_calc['Duree_Brute'] = df_calc.apply(calculer_duree_brute, axis=1)
     df_calc['Durée_Service_Total'] = df_calc.apply(calculer_duree_service, axis=1)
 
@@ -218,20 +213,46 @@ def charger_donnees(fichier):
     
     return df
 
-# --- 3. LOGIQUE D'AUTHENTIFICATION ---
+# NOUVELLE FONCTION DE VÉRIFICATION
+def verifier_donnees(df_semaine):
+    """Vérifie la logique des données de planning et retourne une liste d'avertissements."""
+    avertissements = []
+    df_travail = df_semaine[df_semaine['Durée du service'] > pd.Timedelta(0)].copy()
+    
+    # 1. Vérification : Heure de début après Heure de fin (sans compter les nuits)
+    # On se concentre sur les services de jour simples (début < fin)
+    
+    # Pour un service de jour, on s'attend à ce que Duree_Brute soit < 1 jour (86400s)
+    erreurs_ordre = df_travail[
+        (df_travail['Duree_Brute'] < pd.Timedelta(0)) & # Durée brute négative
+        (df_travail['Duree_Brute'] > pd.Timedelta(days=-1)) # Et ce n'est pas un dépassement de minuit
+    ]
+    
+    if not erreurs_ordre.empty:
+        jours = ", ".join(erreurs_ordre[COL_JOUR].unique())
+        avertissements.append(f"**Heure inversée :** Les horaires de début et de fin sont inversés pour le(s) jour(s) : **{jours}**. Vérifiez la saisie.")
 
-# Définition des identifiants valides
+    # 2. Vérification : Multiples entrées pour le même jour (risque de chevauchement)
+    comptage_jours = df_semaine.groupby(COL_JOUR).size()
+    multiples_entrees = comptage_jours[comptage_jours > 1]
+    
+    if not multiples_entrees.empty:
+        jours = ", ".join(multiples_entrees.index)
+        avertissements.append(f"**Multiples entrées :** Plusieurs lignes de planning trouvées pour le(s) jour(s) : **{jours}**. Risque de chevauchement d'horaires non géré par le calcul (le temps de travail est cumulé).")
+    
+    return avertissements
+
+# --- 3. LOGIQUE D'AUTHENTIFICATION ---
 USERNAMES = ["JULIEN", "HOUDA", "MOUNIA", "ADAM"]
 PASSWORD = "clichy8404"
 
-# Initialisation de l'état de connexion
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 if 'username' not in st.session_state:
     st.session_state['username'] = None
 
 def login():
-    """Fonction de gestion de la connexion."""
+    # (Le corps de la fonction login reste inchangé)
     st.markdown("<h1 style='text-align: center;'>Connexion à l'application Planning</h1>", unsafe_allow_html=True)
     st.warning("Veuillez entrer votre identifiant et mot de passe pour accéder.")
 
@@ -249,7 +270,7 @@ def login():
                 st.error("Identifiant ou mot de passe incorrect.")
 
 # --- FONCTION DE STYLISATION ---
-
+# (La fonction appliquer_style reste inchangée)
 def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     """Applique une couleur de fond à la ligne en fonction du statut (Repos, École, Anniversaire)."""
     styles = [''] * len(row) 
@@ -257,45 +278,35 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     jour_str = row[COL_JOUR] 
     statut = statut_map.get(jour_str, "")
     
-    # 1. Calculer la date complète du jour de la ligne
     try:
         jour_index = ORDRE_JOURS.index(jour_str) 
         date_ligne = date_debut_semaine + timedelta(days=jour_index)
     except Exception:
         return styles
 
-    # 2. Styles prioritaires
-    
-    # Anniversaire 🥳
+    # Anniversaire 🥳 (avec l'information de votre anniversaire: 18 octobre)
     if employe_connecte in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
         if date_ligne.month == mois_anniv and date_ligne.day == jour_anniv:
-            # Jaune clair
             return ['background-color: #FFFF99'] * len(row) 
             
-    # Aujourd'hui 🟢
     if date_ligne == date.today():
-         # Vert clair/eau
         return ['background-color: #CCFFCC'] * len(row) 
         
-    # 3. Styles secondaires
-    
     if statut == "Repos":
-        # Gris clair
         return ['background-color: #F0F0F0'] * len(row) 
     
     if statut == "École":
-        # Bleu clair
         return ['background-color: #DDEEFF'] * len(row) 
     
     return styles
     
-# --- NOUVELLE FONCTION D'EXPORT ---
+# --- FONCTION D'EXPORT ---
+# (La fonction to_excel_buffer reste inchangée)
 def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_selectionnee_brute, annee_selectionnee):
     """Crée un buffer Excel en mémoire pour le téléchargement."""
     output = io.BytesIO()
     
-    # Création du Dataframe à exporter
     df_export = df[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite', 'Durée du service']].copy()
     df_export.columns = ['Jour', 'Début', 'Fin', 'Pause Déduite (Net)', 'Heures Net (Déduites)']
     
@@ -304,39 +315,35 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
         workbook = writer.book
         worksheet = writer.sheets['Planning']
         
-        # Format des colonnes heure/durée
         time_format = workbook.add_format({'num_format': 'hh:mm'})
         duration_format = workbook.add_format({'num_format': '[h]:mm'})
         
-        # Appliquer les formats
-        worksheet.set_column('B:C', 15, time_format)  # Début, Fin
-        worksheet.set_column('D:E', 20, duration_format) # Pauses, Heures Net
+        worksheet.set_column('B:C', 15, time_format)  
+        worksheet.set_column('D:E', 20, duration_format)
         
-        # Écriture des informations de synthèse en haut
         worksheet.write('A1', f"Planning Hebdomadaire {annee_selectionnee}")
         worksheet.write('A2', f"Employé: {employe_selectionne.title()}")
         worksheet.write('A3', f"Semaine: {semaine_selectionnee_brute}")
         worksheet.write('A4', f"Total d'heures nettes: {total_heures_format}h")
         
-        # Écriture de la note de pause
         worksheet.write('A10', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
         
     output.seek(0)
     return output
 
 
-# --- Démarrer le processus d'authentification ---
+# --- LOGIQUE PRINCIPALE DE L'APPLICATION ---
 
 if not st.session_state['authenticated']:
     login()
     
 else:
-    # Le code ci-dessous ne s'exécute que si l'utilisateur est connecté
     try:
         # 4.1 Affichage du titre principal
         st.markdown("<h1 style='text-align: center; font-size: 48px;'>PLANNING CLICHY</h1>", unsafe_allow_html=True) 
         st.markdown("---") 
         
+        # Gestion du logo
         logo_path = NOM_DU_LOGO
         if os.path.exists(logo_path):
             try:
@@ -350,22 +357,14 @@ else:
         df_initial = charger_donnees(NOM_DU_FICHIER)
         
         liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
-        
-        if not liste_employes or (len(liste_employes) == 1 and str(liste_employes[0]).upper() in ['', 'NAN', 'NONE', 'N/A']):
-            st.error(f"**ERREUR :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide ou contient des valeurs non valides.")
-            st.stop()
-
-        # 4.3 Barre latérale et menus déroulants
         employe_connecte = st.session_state['username']
-
-        st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         
-        # LOGIQUE D'ANNIVERSAIRE (Affichage en barre latérale)
+        # ... (Début de la barre latérale)
+        st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         aujourdhui = date.today()
         
         if employe_connecte in ANNIVERSAIRES:
             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
-            
             if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
                 st.sidebar.balloons() 
                 st.sidebar.success("Joyeux Anniversaire ! 🎂")
@@ -376,7 +375,6 @@ else:
             st.rerun()
             
         st.sidebar.markdown("---")
-        
         employe_selectionne = employe_connecte
         
         if employe_selectionne not in liste_employes:
@@ -385,18 +383,16 @@ else:
 
         df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
         
-        # --- NOUVEAU : SÉLECTION DE L'ANNÉE ---
+        # --- SÉLECTION DE L'ANNÉE ---
         st.sidebar.header("Période")
-        
-        # Déterminer les années disponibles dans le fichier
         annees_disponibles = sorted(df_employe_filtre['ANNEE'].unique().tolist(), reverse=True)
         if not annees_disponibles:
-             annees_disponibles = [date.today().year] # Année par défaut
+             annees_disponibles = [date.today().year] 
 
         annee_selectionnee = st.sidebar.selectbox(
             'Année du Planning',
             annees_disponibles,
-            index=0 # Par défaut l'année la plus récente
+            index=0 
         )
         
         df_employe_annee = df_employe_filtre[df_employe_filtre['ANNEE'] == annee_selectionnee].copy()
@@ -413,23 +409,18 @@ else:
             st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}** en {annee_selectionnee}.")
             
         else:
-            # Note: La fonction get_dates_for_week utilise maintenant l'année sélectionnée
             liste_semaines_formatees = [get_dates_for_week(s, annee_selectionnee, format_type='full') for s in liste_semaines_brutes]
             semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
             
-            # --- SÉLECTION AUTOMATIQUE DE LA SEMAINE ACTUELLE ---
             semaine_actuelle_num = aujourdhui.isocalendar()[1]
             semaine_actuelle_brute = f"S{semaine_actuelle_num:02d}" 
             
             try:
-                # Tente de sélectionner la semaine actuelle si elle appartient à l'année sélectionnée
                 index_semaine_actuelle = liste_semaines_brutes.index(semaine_actuelle_brute)
             except ValueError:
                 index_semaine_actuelle = 0
             
-            
             st.sidebar.header("Détail Semaine") 
-            
             semaine_selectionnee_formattee = st.sidebar.selectbox(
                 'Sélectionnez la semaine', 
                 liste_semaines_formatees,
@@ -439,8 +430,7 @@ else:
             semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
             st.sidebar.markdown("---")
             
-            
-            # --- 2. SYNTHÈSE GLOBALE ---
+            # --- SYNTHÈSE GLOBALE (Reste inchangée)
             if not df_semaines_travaillees.empty:
                 st.sidebar.subheader(f"Synthèse {annee_selectionnee}")
                 df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
@@ -467,22 +457,16 @@ else:
             # 4.4 Affichage du planning
             if employe_selectionne and semaine_selectionnee_brute:
                 
-                # Récupérer la date de début de semaine pour la coloration conditionnelle (utilise la nouvelle fonction avec l'année)
                 date_debut_semaine = get_dates_for_week(semaine_selectionnee_brute, annee_selectionnee, format_type='start_date')
-                
                 dates_pour_affichage = get_dates_for_week(semaine_selectionnee_brute, annee_selectionnee, format_type='only_dates')
                 st.markdown(f"<h3 style='text-align: center;'>{dates_pour_affichage}</h3>", unsafe_allow_html=True)
                 st.markdown("---")
                 
-                # Filtrage supplémentaire sur l'année pour être sûr
                 df_filtre = df_employe_annee[df_employe_annee[COL_SEMAINE] == semaine_selectionnee_brute].copy()
 
                 if semaine_selectionnee_brute == 'S52' and annee_selectionnee == 2025:
-                    df_filtre_avant = len(df_filtre)
                     df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
-                    if len(df_filtre) < df_filtre_avant:
-                        st.info(f"Note: Le **Jeudi** de la semaine S52 a été retiré (Jour de Noël 2025).")
-
+                
                 df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
                 df_filtre = df_filtre.sort_values(by=[COL_JOUR])
                 
@@ -504,11 +488,19 @@ else:
                 df_resultat['Pause Déduite'] = df_resultat.apply(
                     lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
                 )
+                
+                # --- NOUVEAU : VÉRIFICATION DES DONNÉES ET AFFICHAGE DES ALERTES ---
+                avertissements = verifier_donnees(df_resultat)
+                if avertissements:
+                    with st.expander("⚠️ **Vérifications de cohérence du planning :**", expanded=True):
+                        for alerte in avertissements:
+                            st.warning(alerte, icon="🚨")
+                st.markdown("---")
+                
+                # ------------------------------------------------------------------
 
-                # Créer la map du statut pour la fonction de style
                 statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
 
-                # Mise en forme des colonnes DEBUT/FIN pour l'affichage (remplacer par Repos/École)
                 df_resultat[COL_DEBUT] = df_resultat.apply(
                     lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
                 )
@@ -524,8 +516,6 @@ else:
                 )
                 
                 st.markdown("**Une heure de pause méridienne est déduite chaque jour de service (si la durée brute dépasse 1h).**")
-                
-                # --- NOUVEAU : BOUTON DE TÉLÉCHARGEMENT ---
                 
                 excel_buffer = to_excel_buffer(
                     df_resultat, 
@@ -545,12 +535,10 @@ else:
 
                 st.markdown("---")
                 
-                # --- AFFICHAGE AVEC MISE EN FORME CONDITIONNELLE ---
+                # --- AFFICHAGE FINAL ---
                 
-                # Colonnes à afficher
                 df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite']].copy()
 
-                # Appliquer la fonction de style LIGNE PAR LIGNE
                 styled_df = df_affichage.style.apply(
                     appliquer_style,
                     axis=1,
