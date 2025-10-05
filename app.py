@@ -221,7 +221,7 @@ else:
             st.error(f"**ERREUR :** La colonne des employés (`'{COL_EMPLOYE}'`) est vide ou contient des valeurs non valides.")
             st.stop()
 
-        # 4.3 Barre latérale et menus déroulants (MODIFICATIONS A & B)
+        # 4.3 Barre latérale et menus déroulants
         
         # A. MESSAGE DE BIENVENUE ET DÉCONNEXION
         st.sidebar.markdown(f"**👋 Bienvenue, {st.session_state['username'].title()}**")
@@ -244,9 +244,40 @@ else:
 
         # Filtrer les semaines travaillées pour l'employé sélectionné
         df_employe_filtre = df_initial[df_initial[COL_EMPLOYE] == employe_selectionne].copy()
-        df_semaines_travaillees = df_employe_filtre[df_employe_filtre['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)]
+        
+        # Utilisation de la colonne TEMPS_TOTAL_SEMAINE déjà calculée dans charger_donnees
+        df_semaines_travaillees = df_employe_filtre[
+            df_employe_filtre['TEMPS_TOTAL_SEMAINE'] > pd.Timedelta(0)
+        ].drop_duplicates(subset=[COL_SEMAINE])
         
         liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
+
+        # --- C. AFFICHAGE DE LA SYNTHÈSE GLOBALE DANS LA BARRE LATÉRALE ---
+        if not df_semaines_travaillees.empty:
+            
+            st.sidebar.subheader("Synthèse Annuelle")
+            
+            # Créer le tableau de synthèse
+            df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
+            df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False)
+            
+            # Formater la colonne des totaux pour l'affichage
+            df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
+            
+            st.sidebar.dataframe(
+                df_synthese[[COL_SEMAINE, 'Total Heures']],
+                use_container_width=True,
+                column_config={
+                    COL_SEMAINE: st.column_config.Column("Semaine", width="small"),
+                    "Total Heures": st.column_config.Column("Total (net)", width="small"),
+                },
+                hide_index=True
+            )
+            st.sidebar.markdown("---")
+            st.sidebar.header("Détail Semaine") # Remettre un header avant le selectbox
+            
+        # -------------------------------------------------------------------
+
 
         # Initialisation de la semaine pour l'affichage conditionnel
         semaine_selectionnee_brute = None
