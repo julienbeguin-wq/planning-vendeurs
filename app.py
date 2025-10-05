@@ -6,7 +6,6 @@ import io
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
 
-# Assurez-vous que ce fichier est au même niveau que app.py dans votre répertoire.
 NOM_DU_FICHIER = "planningss.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
@@ -73,7 +72,7 @@ def calculer_heures_travaillees(df_planning):
         # Calcul de la durée brute et ajustement pour la pause
         def calculer_duree(row):
             if pd.isna(row['Duree_Debut']) or pd.isna(row['Duree_Fin']):
-                return pd.Timedelta(0)
+                return pd.Timedelta(0) # Renvoie 0 pour les jours non travaillés
             
             duree = row['Duree_Fin'] - row['Duree_Debut']
             
@@ -131,8 +130,10 @@ def charger_donnees(fichier):
         st.error(f"**ERREUR DE DONNÉES : Colonnes manquantes.** Votre fichier doit contenir les colonnes suivantes : {', '.join(COLONNES_OBLIGATOIRES)}. Colonnes manquantes : {', '.join(colonnes_manquantes)}")
         st.stop()
         
-    df[COL_DEBUT] = df[COL_DEBUT].fillna(np.nan) 
-    df[COL_FIN] = df[COL_FIN].fillna(np.nan)
+    # --- CORRECTION 1 : Remplacer les NaN par des chaînes vides avant le traitement final ---
+    # Cela permet à la fonction d'affichage de ne pas montrer "nan"
+    df[COL_DEBUT] = df[COL_DEBUT].fillna('') 
+    df[COL_FIN] = df[COL_FIN].fillna('')
 
     for col in df.columns:
         if df[col].dtype == 'object' or df[col].dtype.name == 'category': 
@@ -161,7 +162,7 @@ try:
     except Exception:
          st.sidebar.warning(f"Logo '{NOM_DU_LOGO}' non trouvé.")
     
-    # 3.2 Chargement des données (Si cela échoue, st.stop() sera appelé dans la fonction)
+    # 3.2 Chargement des données
     df_initial = charger_donnees(NOM_DU_FICHIER)
     
     liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
@@ -210,6 +211,12 @@ try:
         
         # Calculer les heures et obtenir le tableau
         df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
+        
+        # --- CORRECTION 2 : Affichage d'une valeur vide ou 'Repos' au lieu de 'a few seconds' ---
+        # On remplace les durées nulles (Timedelta('0 days 00:00:00')) par une valeur à afficher
+        df_resultat['Durée du service'] = df_resultat['Durée du service'].apply(
+            lambda x: "Repos" if x == pd.Timedelta(0) else x
+        )
         
         st.subheader(f"Planning pour **{employe_selectionne}** - {semaine_selectionnee_formattee}")
         
