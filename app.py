@@ -50,20 +50,15 @@ config = {
 }
 
 # --- FONCTIONS (inchangées) ---
-
 def get_dates_for_week(week_str, year=2025):
-    """Convertit une chaîne de semaine (ex: 'S41') en dates de début et de fin (Lundi-Dimanche)."""
-    
     MONTHS = {
         1: "janvier", 2: "février", 3: "mars", 4: "avril", 5: "mai", 6: "juin",
         7: "juillet", 8: "août", 9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre"
     }
-    
     try:
         week_num = int(week_str.upper().replace('S', ''))
     except ValueError:
         return week_str
-
     try:
         d = date(year, 1, 4) 
         date_debut = d + timedelta(days=(week_num - d.isoweek()) * 7)
@@ -75,16 +70,11 @@ def get_dates_for_week(week_str, year=2025):
         return week_str
 
 def calculer_heures_travaillees(df_planning):
-    """Calcule le total des heures travaillées et la durée par service."""
-    
     df_planning_calc = df_planning.copy()
-
     try:
         def to_time_str_for_calc(val):
-            if pd.isna(val) or val == "":
-                return "00:00:00"
-            if isinstance(val, (datetime.time, pd.Timestamp)):
-                return str(val)
+            if pd.isna(val) or val == "": return "00:00:00"
+            if isinstance(val, (datetime.time, pd.Timestamp)): return str(val)
             elif isinstance(val, (int, float)) and 0 <= val <= 1: 
                 total_seconds = val * 86400 
                 h = int(total_seconds // 3600)
@@ -98,24 +88,18 @@ def calculer_heures_travaillees(df_planning):
         
         def calculer_duree(row):
             duree = row['Duree_Fin'] - row['Duree_Debut']
-            if duree < pd.Timedelta(0):
-                duree += pd.Timedelta(days=1)
-            if duree > pd.Timedelta(hours=1):
-                duree -= pd.Timedelta(hours=1) 
-            if duree < pd.Timedelta(0):
-                return pd.Timedelta(0)
+            if duree < pd.Timedelta(0): duree += pd.Timedelta(days=1)
+            if duree > pd.Timedelta(hours=1): duree -= pd.Timedelta(hours=1) 
+            if duree < pd.Timedelta(0): return pd.Timedelta(0)
             return duree
 
         df_planning_calc['Durée du service'] = df_planning_calc.apply(calculer_duree, axis=1)
         df_planning['Durée du service'] = df_planning_calc['Durée du service'] 
-        
         durees_positives = df_planning_calc[df_planning_calc['Durée du service'] > pd.Timedelta(0)]['Durée du service']
         total_duree = durees_positives.sum()
-        
         secondes_totales = total_duree.total_seconds()
         heures = int(secondes_totales // 3600)
         minutes = int((secondes_totales % 3600) // 60)
-        
         return df_planning, f"{heures}h {minutes}min"
         
     except Exception as e:
@@ -124,7 +108,7 @@ def calculer_heures_travaillees(df_planning):
 
 @st.cache_data
 def charger_donnees(fichier):
-    """Charge le fichier (Excel ou CSV) et nettoie les données."""
+    # ... (fonction inchangée)
     try:
         df = pd.read_excel(fichier)
     except Exception:
@@ -166,8 +150,9 @@ authenticator = stauth.Authenticate(
 )
 
 # Affichage du formulaire de connexion
-# 💥 LIGNE 154 CORRIGÉE : Le nom de formulaire ('Login') en positionnel, la location en nommé.
-name, authentication_status, username = authenticator.login('Login', location='main')
+# 💥 LIGNE 154 CORRIGÉE : Utilisation de 'unrendered' pour forcer l'affichage manuel
+name, authentication_status, username = authenticator.login('Login', location='unrendered')
+
 
 # --- LOGIQUE POST-CONNEXION ---
 
@@ -271,4 +256,6 @@ elif st.session_state["authentication_status"] is False:
 
 elif st.session_state["authentication_status"] is None:
     # L'utilisateur n'a pas encore entré d'informations
+    st.markdown("<h1 style='text-align: center;'>Connexion</h1>", unsafe_allow_html=True)
+    st.empty() # Nécessaire pour forcer le rendu du formulaire
     st.warning('Veuillez entrer votre identifiant et mot de passe pour accéder.')
