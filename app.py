@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 
-NOM_DU_FICHIER = "RePlannings1.2.xlsx"
+NOM_DU_FICHIER = "RePlannings1.2.xlsx" # Vérifiez que ce nom est correct
 NOM_DU_LOGO = "mon_logo.png" 
 
 # LISTE DES ANNIVERSAIRES 🎂
@@ -73,6 +73,7 @@ def get_dates_for_week(week_str, year, format_type='full'):
     
     try:
         d = date(year, 1, 1)
+        # Début de l'année ISO (Lundi de la première semaine)
         date_debut_annee_iso = d + timedelta(days=-d.weekday())
 
         date_debut = date_debut_annee_iso + timedelta(weeks=week_num - 1)
@@ -145,7 +146,7 @@ def obtenir_statut_global(row):
 
 
 def calculer_heures_travaillees(df_planning):
-    """Calcule le total des heures nettes pour le planning (ne fait plus les calculs intermédiaires)."""
+    """Calcule le total des heures nettes pour le planning."""
 
     durees_positives = df_planning[df_planning['Durée du service'] > pd.Timedelta(0)]['Durée du service']
     total_duree = durees_positives.sum()
@@ -165,7 +166,7 @@ def extraire_annee(semaine_str):
 
 @st.cache_data
 def charger_donnees(fichier):
-    """Charge le fichier, vérifie les colonnes, **calcule toutes les durées par ligne** et pré-calcule les totaux."""
+    """Charge le fichier, vérifie les colonnes, calcule toutes les durées par ligne et pré-calcule les totaux."""
     if not os.path.exists(fichier):
         st.error(f"**ERREUR CRITIQUE DE FICHIER :** Le fichier '{fichier}' est introuvable. Assurez-vous qu'il est dans le même dossier que 'app.py' et que le nom est exact.")
         st.stop()
@@ -196,7 +197,7 @@ def charger_donnees(fichier):
     
     df['ANNEE'] = df[COL_SEMAINE].apply(extraire_annee)
     
-    # --- CALCULS DE DURÉE PAR LIGNE (Déplacé ici pour être disponible pour le calendrier) ---
+    # --- CALCULS DE DURÉE PAR LIGNE (Pour le calendrier et le tableau) ---
     df['Duree_Debut'] = df[COL_DEBUT].apply(convertir_heure_en_timedelta)
     df['Duree_Fin'] = df[COL_FIN].apply(convertir_heure_en_timedelta)
     
@@ -261,6 +262,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     # Utilisation de la colonne 'Statut' pré-calculée
     for _, row in df_mois.iterrows():
         jour = row['DATE'].day
+        # Note: Si plusieurs entrées existent pour un jour, seul le statut de la dernière ligne sera retenu
         statut_par_jour[jour] = row['Statut']
 
 
@@ -280,7 +282,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     
     html_calendar += "<table style='width: 100%; font-size: 12px; text-align: center; border-collapse: collapse;'>"
     html_calendar += "<thead><tr>"
-    # EN-TÊTES DE JOURS CORRIGÉS POUR INCLURE SAM ET DIM
+    # EN-TÊTES DE JOURS
     for day_name in ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]:
         html_calendar += f"<th>{day_name}</th>"
     html_calendar += "</tr></thead><tbody>"
@@ -291,7 +293,8 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
         html_calendar += "<tr>"
         for day_num, weekday in week:
             if day_num == 0:
-                html_calendar += "<td style='background-color: #E8E8E8;'></td>" 
+                # CORRECTION 1 : Ajout de la hauteur pour les jours du mois précédent/suivant (cellules grises vides)
+                html_calendar += "<td style='background-color: #E8E8E8; height: 25px;'></td>" 
                 continue
             
             day_date = date(annee, mois, day_num)
@@ -307,14 +310,14 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
                 if day_date.month == mois_anniv and day_date.day == jour_anniv:
                     day_style = styles['Anniversaire']
             
-            html_calendar += f"<td style='{day_style}; border: 1px solid #DDDDDD;'>{day_num}</td>"
+            # CORRECTION 2 : Ajout de la hauteur pour les cellules de jours réelles (Travail/Repos/École)
+            html_calendar += f"<td style='{day_style}; border: 1px solid #DDDDDD; height: 25px;'>{day_num}</td>"
         html_calendar += "</tr>"
     
     html_calendar += "</tbody></table>"
     
     sidebar.markdown(html_calendar, unsafe_allow_html=True)
     
-    # --- LÉGENDE SUPPRIMÉE ICI ---
 
 
 # --- 3. LOGIQUE D'AUTHENTIFICATION ---
@@ -358,7 +361,7 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     except Exception:
         return styles
 
-    # Anniversaire 🥳 (18 octobre pour Julien)
+    # Anniversaire 🥳
     if employe_connecte in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
         if date_ligne.month == mois_anniv and date_ligne.day == jour_anniv:
@@ -435,7 +438,7 @@ else:
         liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
         employe_connecte = st.session_state['username']
         
-        # ... (Début de la barre latérale)
+        # --- Barre latérale ---
         st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         aujourdhui = date.today()
         
@@ -493,8 +496,10 @@ else:
             semaine_actuelle_brute = f"S{semaine_actuelle_num:02d}" 
             
             try:
+                # Tente de présélectionner la semaine actuelle
                 index_semaine_actuelle = liste_semaines_brutes.index(semaine_actuelle_brute)
             except ValueError:
+                # Sinon, sélectionne la première semaine disponible
                 index_semaine_actuelle = 0
             
             st.sidebar.header("Détail Semaine") 
@@ -518,7 +523,7 @@ else:
             st.sidebar.markdown("---")
             st.sidebar.subheader("Vue Mensuelle")
             
-            # Le dataframe df_employe_filtre a déjà les colonnes DATE, Statut et Durée du service
+            # Affiche le calendrier avec les corrections de style
             afficher_calendrier(
                 df_employe_filtre, 
                 mois_selectionne, 
@@ -528,9 +533,6 @@ else:
             )
             st.sidebar.markdown("---")
             
-            # --- SYNTHÈSE GLOBALE (BLOC SUPPRIMÉ) ---
-            
-            # -------------------------------------------------
 
             # 4.4 Affichage du planning principal
             if employe_selectionne and semaine_selectionnee_brute:
@@ -540,37 +542,39 @@ else:
                 st.markdown(f"<h3 style='text-align: center;'>{dates_pour_affichage}</h3>", unsafe_allow_html=True)
                 st.markdown("---")
                 
-                # df_filtre contient déjà toutes les colonnes de durée et Statut
+                # Filtre pour la semaine sélectionnée
                 df_filtre = df_employe_annee[df_employe_annee[COL_SEMAINE] == semaine_selectionnee_brute].copy()
 
-                if semaine_selectionnee_brute == 'S52' and annee_selectionnee == 2025:
-                    df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
+                # Exemple de filtre spécifique si nécessaire (laissé en commentaire si non pertinent pour votre usage)
+                # if semaine_selectionnee_brute == 'S52' and annee_selectionnee == 2025:
+                #     df_filtre = df_filtre[df_filtre[COL_JOUR] != 'JEUDI'].copy()
                 
                 df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
                 df_filtre = df_filtre.sort_values(by=[COL_JOUR])
                 
                 df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
                 
-                # Les colonnes Statut, Durée du service et Duree_Brute existent
                 
                 # Ajoute la colonne de Pause Déduite (non affichée)
                 df_resultat['Pause Déduite'] = df_resultat.apply(
                     lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
                 )
                 
-                # --- VÉRIFICATION DES DONNÉES ET AFFICHAGE DES ALERTES (BLOC SUPPRIMÉ) ---
-                verifier_donnees(df_resultat)
+                # Affichage des avertissements (si horaires inversés ou multiples entrées)
+                avertissements = verifier_donnees(df_resultat)
+                if avertissements:
+                    for alerte in avertissements:
+                        st.warning(alerte)
                 st.markdown("---")
                 
-                # ------------------------------------------------------------------
 
-                # Correction SyntaxError : remis sur une seule ligne
                 statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
 
-                # Remplace l'affichage des heures par le statut si Repos/École
+                # Remplace l'affichage des heures par le statut si Repos/École dans la colonne de DEBUT
                 df_resultat[COL_DEBUT] = df_resultat.apply(
                     lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
                 )
+                # Vide la colonne de FIN si Repos/École
                 df_resultat[COL_FIN] = df_resultat.apply(
                     lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
                 )
@@ -604,7 +608,7 @@ else:
                 
                 # --- AFFICHAGE FINAL ---
                 
-                # 'Pause Déduite' est supprimée de l'affichage
+                # Colonnes à afficher dans le DataFrame Streamlit
                 df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]].copy() 
 
                 styled_df = df_affichage.style.apply(
@@ -632,5 +636,6 @@ else:
                 """)
                 
     except Exception as e:
-        # st.error(f"Une erreur fatale s'est produite : {e}.")
-        st.exception(e) # Affiche l'erreur complète pour le débogage
+        st.error("Une erreur s'est produite lors de l'exécution. Vérifiez le fichier Excel et les données.")
+        # Ligne pour le débogage si vous en avez besoin, mais à retirer en production :
+        # st.exception(e)
