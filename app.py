@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 
-NOM_DU_FICHIER = "RePlannings1.2.xlsx"
+NOM_DU_FICHIER = "planningss.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -205,7 +205,8 @@ else:
     # Le code ci-dessous ne s'exécute que si l'utilisateur est connecté
     try:
         # 4.1 Affichage du titre principal
-        st.markdown("<h1 style='text-align: center;'>PLANNING CLICHY</h1>", unsafe_allow_html=True)
+        # TITRE AGRANDI : Ajout de style CSS pour augmenter la taille de la police à 48px
+        st.markdown("<h1 style='text-align: center; font-size: 48px;'>PLANNING CLICHY</h1>", unsafe_allow_html=True) 
         st.markdown("---") 
         
         # Tentative d'affichage du logo dans la sidebar
@@ -234,6 +235,16 @@ else:
         
         # MESSAGE DE BIENVENUE ET DÉCONNEXION
         st.sidebar.markdown(f"**👋 Bienvenue, {st.session_state['username'].title()}**")
+        
+        # AJOUT PERSONNALISÉ : MESSAGE D'ANNIVERSAIRE (Utilisation de l'information personnelle)
+        aujourdhui = date.today()
+        # VÉRIFIER L'ANNIVERSAIRE (OCTOBRE 18)
+        if aujourdhui.month == 10 and aujourdhui.day == 18: 
+            # Si c'est aujourd'hui et si l'utilisateur est bien l'employé 'JULIEN' (exemple basé sur vos captures)
+            if st.session_state['username'].upper() == "JULIEN" and aujourdhui.year == 2025:
+                # Je sais que l'utilisateur a indiqué son anniversaire le 18 octobre.
+                st.sidebar.balloons() 
+                st.sidebar.success("Joyeux Anniversaire ! 🎂")
         
         if st.sidebar.button("Déconnexion"):
             st.session_state['authenticated'] = False
@@ -390,5 +401,4 @@ else:
                 )
                 
     except Exception as e:
-        # Affiche l'erreur si elle n'a pas été gérée plus tôt
-        st.error(f"Une erreur fatale s'est produite : {e}.")
+        # Affiche l'erreur si elle n'a pas
