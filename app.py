@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 
-NOM_DU_FICHIER = "planningss.xlsx"
+NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png" 
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
