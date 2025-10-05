@@ -280,6 +280,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, sidebar):
     
     html_calendar += "<table style='width: 100%; font-size: 12px; text-align: center; border-collapse: collapse;'>"
     html_calendar += "<thead><tr>"
+    # LIGNE CORRIGÉE : AJOUT DE SAMEDI ET DIMANCHE
     for day_name in ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]:
         html_calendar += f"<th>{day_name}</th>"
     html_calendar += "</tr></thead><tbody>"
@@ -381,8 +382,7 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
     """Crée un buffer Excel en mémoire pour le téléchargement."""
     output = io.BytesIO()
     
-    # Utilisation de la colonne 'Durée du service' qui doit exister
-    # 'Pause Déduite' est supprimée ici
+    # 'Pause Déduite' est supprimée de l'export
     df_export = df[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']].copy()
     df_export.columns = ['Jour', 'Début', 'Fin', 'Heures Net (Déduites)']
     
@@ -395,7 +395,7 @@ def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_select
         duration_format = workbook.add_format({'num_format': '[h]:mm'})
         
         worksheet.set_column('B:C', 15, time_format)  
-        worksheet.set_column('D:D', 20, duration_format) # Ajusté car 'Pause Déduite' est enlevée
+        worksheet.set_column('D:D', 20, duration_format) 
         
         worksheet.write('A1', f"Planning Hebdomadaire {annee_selectionnee}")
         worksheet.write('A2', f"Employé: {employe_selectionne.title()}")
@@ -528,27 +528,7 @@ else:
             )
             st.sidebar.markdown("---")
             
-            # --- SYNTHÈSE GLOBALE (BLOC ENTIÈREMENT SUPPRIMÉ ICI) ---
-            # if not df_semaines_travaillees.empty:
-            #     st.sidebar.subheader(f"Synthèse {annee_selectionnee}")
-            #     df_synthese = df_semaines_travaillees[[COL_SEMAINE, 'TEMPS_TOTAL_SEMAINE']].copy()
-            #     df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=True) 
-                
-            #     df_synthese['Heures_Secondes'] = df_synthese['TEMPS_TOTAL_SEMAINE'].dt.total_seconds() / 3600
-                
-            #     st.sidebar.bar_chart(df_synthese, x=COL_SEMAINE, y='Heures_Secondes', height=200)
-            #     st.sidebar.markdown("**Heures travaillées (net)**")
-                
-            #     df_synthese = df_synthese.sort_values(by=COL_SEMAINE, ascending=False) 
-            #     df_synthese['Total Heures'] = df_synthese['TEMPS_TOTAL_SEMAINE'].apply(formater_duree).str.replace("min", "")
-                
-            #     st.sidebar.dataframe(
-            #         df_synthese[[COL_SEMAINE, 'Total Heures']],
-            #         use_container_width=True,
-            #         column_config={"Total Heures": st.column_config.Column("Total (net)", width="small")},
-            #         hide_index=True
-            #     )
-            #     st.sidebar.markdown("---")
+            # --- SYNTHÈSE GLOBALE (BLOC SUPPRIMÉ) ---
             
             # -------------------------------------------------
 
@@ -573,8 +553,7 @@ else:
                 
                 # Les colonnes Statut, Durée du service et Duree_Brute existent
                 
-                # Ajoute la colonne de Pause Déduite pour l'affichage/export
-                # Cette colonne sera toujours calculée en interne pour la logique, mais non affichée.
+                # Ajoute la colonne de Pause Déduite (non affichée)
                 df_resultat['Pause Déduite'] = df_resultat.apply(
                     lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
                 )
@@ -585,7 +564,7 @@ else:
                 
                 # ------------------------------------------------------------------
 
-                # Création du statut_map pour le stylage
+                # Correction SyntaxError : remis sur une seule ligne
                 statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
 
                 # Remplace l'affichage des heures par le statut si Repos/École
@@ -643,14 +622,13 @@ else:
                         COL_JOUR: st.column_config.Column("Jour", width="large"),
                         COL_DEBUT: st.column_config.Column("Début / Statut"), 
                         COL_FIN: st.column_config.Column("Fin"),
-                        # 'Pause Déduite' est supprimée de la configuration des colonnes
                     },
                     hide_index=True
                 )
                 
                 st.markdown("""
                 **Légende :**
-                ⚪ Repos | 🔵 École | 🟢 Aujourd'hui | 🟡 Anniversaire
+                ⚪ Repos | 🟢 Aujourd'hui | 🟡 Anniversaire
                 """)
                 
     except Exception as e:
