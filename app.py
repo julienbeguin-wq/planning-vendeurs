@@ -546,7 +546,7 @@ else:
         
         # Anniversaire 
         anniv_message = ""
-        # On peut personnaliser l'anniversaire pour l'utilisateur Julien
+        # Personnalisation de l'anniversaire pour l'utilisateur
         if employe_connecte == "JULIEN" and aujourdhui.month == 10 and aujourdhui.day == 18:
             st.sidebar.balloons() 
             anniv_message = "Joyeux Anniversaire ! 🎂"
@@ -619,20 +619,17 @@ else:
         
         st.sidebar.header("Détail Semaine") 
         
-        # --- DÉFINITION DE LA SÉLECTION PAR DÉFAUT POUR LE MULTISELECT (CORRIGÉ) ---
+        # --- DÉFINITION DE LA SÉLECTION PAR DÉFAUT POUR LE MULTISELECT ---
         default_selection = []
-        # Si une semaine par défaut (actuelle ou la première) est trouvée, on l'ajoute à la sélection par défaut.
         if semaine_defaut_brute:
             semaine_formattee_defaut = get_dates_for_week(semaine_defaut_brute, annee_selectionnee, format_type='full')
             if semaine_formattee_defaut in liste_semaines_formatees:
                  default_selection = [semaine_formattee_defaut]
 
-        # Utilisation de multiselect pour permettre l'export multiple
+        # Utilisation de multiselect et rétention de la sélection via st.session_state
         semaines_selectionnees_formattees = st.sidebar.multiselect(
             'Sélectionnez la ou les semaines', 
             liste_semaines_formatees,
-            # Utilisation de la clé de session pour forcer la rétention de la sélection après rerun,
-            # sinon on utilise la sélection par défaut.
             default=st.session_state.get('semaines_selec', default_selection),
             key='semaines_selec_multiselect'
         )
@@ -645,7 +642,7 @@ else:
         semaines_selectionnees_brutes = [semaine_mapping.get(s) for s in semaines_selectionnees_formattees if s in semaine_mapping]
         
         
-        # --- CONTRÔLE DE L'AFFICHAGE DU CORPS PRINCIPAL (CORRIGÉ) ---
+        # --- CONTRÔLE DE L'AFFICHAGE DU CORPS PRINCIPAL ---
         if not semaines_selectionnees_brutes:
             # Si aucune semaine n'est sélectionnée, on affiche l'avertissement et le total à zéro
             st.info("Veuillez sélectionner au moins une semaine dans la barre latérale pour afficher le planning détaillé et le bouton de téléchargement.")
@@ -698,8 +695,7 @@ else:
                 st 
             )
             
-            st.markdown("---")
-            
+            st.markdown("---") # SÉPARATEUR AJOUTÉ APRÈS LE CALENDRIER
 
             # 4.4 Affichage du planning principal (détail de la première semaine sélectionnée)
             
@@ -728,16 +724,40 @@ else:
             statut_map = df_resultat_affichage.set_index(COL_JOUR)['Statut'].to_dict()
 
             df_affichage = df_resultat_affichage[[COL_JOUR, COL_DEBUT, COL_FIN]].copy()
-            df_affichage[COL_DEBUT] = df_affichage.apply(
-                lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
+            
+            # Correction pour s'assurer que les colonnes sont traitées pour l'affichage (éviter 'timedelta' dans le tableau)
+            def formater_heure_ou_statut(row, col_name, statut):
+                if statut in ["Repos", "École"]:
+                    return statut if col_name == COL_DEBUT else ""
+                
+                val = row[col_name]
+                if pd.isna(val) or val == "":
+                    return ""
+                # Si c'est un Timedelta (ce qui arrive après la conversion), le formater
+                if isinstance(val, pd.Timedelta):
+                    seconds = val.total_seconds()
+                    heures = int(seconds // 3600)
+                    minutes = int((seconds % 3600) // 60)
+                    return f"{heures:02d}:{minutes:02d}"
+                return str(val)
+
+            # Application des heures nettes (avec déduction de pause)
+            df_affichage['Pause Déduite (Net)'] = df_resultat_affichage.apply(
+                lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
             )
-            df_affichage[COL_FIN] = df_affichage.apply(
-                lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
+            
+            df_affichage[COL_DEBUT] = df_resultat_affichage.apply(
+                lambda row: formater_heure_ou_statut(row, COL_DEBUT, row['Statut']), axis=1
+            )
+            df_affichage[COL_FIN] = df_resultat_affichage.apply(
+                lambda row: formater_heure_ou_statut(row, COL_FIN, row['Statut']), axis=1
             )
 
+            df_affichage.columns = ['Jour', 'Début / Statut', 'Fin', 'Pause Déduite (Net)'] # Renommer les colonnes pour l'affichage
+            
             st.subheader(f"Planning pour **{employe_selectionne.title()}**")
             
-            # Bouton de téléchargement MULTI-SEMAINE
+            # Bouton de téléchargement MULTI-SEMAINE (Doit être affiché ici)
             if semaines_selectionnees_brutes:
                 excel_buffer = to_excel_buffer(
                     df_initial, 
@@ -757,7 +777,7 @@ else:
 
                 st.markdown("---")
             
-            # --- AFFICHAGE FINAL ---
+            # --- AFFICHAGE FINAL DU DATAFRAME ---
             styled_df = df_affichage.style.apply(
                 appliquer_style,
                 axis=1,
@@ -770,9 +790,10 @@ else:
                 styled_df, 
                 use_container_width=True,
                 column_config={
-                    COL_JOUR: st.column_config.Column("Jour", width="large"),
-                    COL_DEBUT: st.column_config.Column("Début / Statut"), 
-                    COL_FIN: st.column_config.Column("Fin"),
+                    'Jour': st.column_config.Column("Jour", width="large"),
+                    'Début / Statut': st.column_config.Column("Début / Statut"), 
+                    'Fin': st.column_config.Column("Fin"),
+                    'Pause Déduite (Net)': st.column_config.Column("Pause Déduite (Net)"),
                 },
                 hide_index=True
             )
