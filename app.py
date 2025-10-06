@@ -725,32 +725,40 @@ else:
 
             df_affichage = df_resultat_affichage[[COL_JOUR, COL_DEBUT, COL_FIN]].copy()
             
-            # Correction pour s'assurer que les colonnes sont traitées pour l'affichage (éviter 'timedelta' dans le tableau)
-            def formater_heure_ou_statut(row, col_name, statut):
-                if statut in ["Repos", "École"]:
-                    return statut if col_name == COL_DEBUT else ""
+            # --- CORRECTION DE LA LOGIQUE DE FORMATAGE DES HEURES POUR L'AFFICHAGE ---
+            def formater_heure_ou_statut_pour_tableau(row, col_name):
+                # Si le statut est Repos ou École, afficher le statut dans la colonne Début
+                if row['Statut'] in ["Repos", "École"]:
+                    return row['Statut'] if col_name == COL_DEBUT else ""
                 
+                # Sinon, formater l'heure
                 val = row[col_name]
                 if pd.isna(val) or val == "":
                     return ""
-                # Si c'est un Timedelta (ce qui arrive après la conversion), le formater
+                    
+                # Si c'est un objet Python time ou str (l'heure initiale du Excel)
+                if isinstance(val, (time, str)):
+                     return str(val)
+                # Si c'est un Timedelta (le résultat de la conversion pour le calcul), essayer de formater en hh:mm
                 if isinstance(val, pd.Timedelta):
                     seconds = val.total_seconds()
                     heures = int(seconds // 3600)
                     minutes = int((seconds % 3600) // 60)
                     return f"{heures:02d}:{minutes:02d}"
+                
+                # Dernière tentative de conversion en str
                 return str(val)
 
             # Application des heures nettes (avec déduction de pause)
             df_affichage['Pause Déduite (Net)'] = df_resultat_affichage.apply(
-                lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
+                lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) and row['Statut'] == "Travail" else "", axis=1
             )
             
             df_affichage[COL_DEBUT] = df_resultat_affichage.apply(
-                lambda row: formater_heure_ou_statut(row, COL_DEBUT, row['Statut']), axis=1
+                lambda row: formater_heure_ou_statut_pour_tableau(row, COL_DEBUT), axis=1
             )
             df_affichage[COL_FIN] = df_resultat_affichage.apply(
-                lambda row: formater_heure_ou_statut(row, COL_FIN, row['Statut']), axis=1
+                lambda row: formater_heure_ou_statut_pour_tableau(row, COL_FIN), axis=1
             )
 
             df_affichage.columns = ['Jour', 'Début / Statut', 'Fin', 'Pause Déduite (Net)'] # Renommer les colonnes pour l'affichage
