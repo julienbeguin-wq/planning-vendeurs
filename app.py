@@ -1,4 +1,3 @@
-
 import pandas as pd
 import streamlit as st
 from datetime import date, timedelta, time
@@ -64,6 +63,11 @@ def formater_heure_pour_colonne(val):
     if pd.isna(val) or val == "":
         return ""
     
+    if isinstance(val, str):
+        # Si c'est déjà une chaîne 'nan' ou 'École'
+        if val.lower() in ('nan', '') or 'ECOLE' in val.upper():
+            return ""
+    
     if isinstance(val, (time, pd.Timestamp)):
          # Nettoyage de l'objet heure
          return str(val).split('.')[-1].split(' ')[-1] if ' ' in str(val) else str(val)
@@ -74,7 +78,11 @@ def formater_heure_pour_colonne(val):
         minutes = int((seconds % 3600) // 60)
         return f"{heures:02d}:{minutes:02d}"
     
-    return str(val)
+    try:
+        # Tente de convertir en chaîne propre
+        return str(val).split(' ')[-1] if ' ' in str(val) else str(val)
+    except:
+        return ""
 
 
 def get_dates_for_week(week_str, year, format_type='full'):
@@ -474,9 +482,9 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     
     return styles
     
-# --- FONCTION D'EXPORT MISE À JOUR (Multi-semaines avec style) ---
+# --- FONCTION D'EXPORT MISE À JOUR (Multi-semaines avec colonnes ajustées et nan nettoyés) ---
 def to_excel_buffer_multi(df_initial, employe_selectionne, semaines_a_exporter, annee_selectionnee):
-    """Crée un buffer Excel en mémoire pour le téléchargement multi-semaines avec style."""
+    """Crée un buffer Excel en mémoire pour le téléchargement multi-semaines."""
     
     # 1. Filtrer les données
     df_export_data = df_initial[
@@ -487,31 +495,36 @@ def to_excel_buffer_multi(df_initial, employe_selectionne, semaines_a_exporter, 
     if df_export_data.empty:
         return None
         
-    # 2. Calcul du total global et préparation des colonnes
+    # 2. Calcul du total global
     df_export_data, total_heures_format = calculer_heures_travaillees(df_export_data)
-    
-    # Ajoute la colonne Pause Déduite (en chaîne de caractères)
-    df_export_data['Pause Déduite'] = df_export_data.apply(
-        lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) and row['Statut'] == "Travail" else "", axis=1
-    )
     
     # Triez les données
     df_export_data[COL_JOUR] = pd.Categorical(df_export_data[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
     df_export_data = df_export_data.sort_values(by=[COL_SEMAINE, COL_JOUR])
     
-    # Préparation du DataFrame final pour l'export
-    # Inclure 'Durée du service' pour la mise en forme conditionnelle et la colonne d'heures nettes
-    df_export = df_export_data[[COL_SEMAINE, COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite', 'Durée du service']].copy()
-    df_export.columns = ['Semaine', 'Jour', 'Début', 'Fin', 'Pause Déduite', 'Heures Net (Déduites)']
+    # --- PRÉPARATION DU DATAFRAME FINAL AVEC LES COLONNES DEMANDÉES (Semaine, Jour, Début, Fin) ---
+    df_export = df_export_data[[COL_SEMAINE, COL_JOUR, COL_DEBUT, COL_FIN]].copy()
+    df_export.columns = ['Semaine', 'Jour', 'Début', 'Fin']
     
-    # Remplacement des NaN (pour l'affichage propre dans Excel)
-    cols_a_nettoyer = ['Début', 'Fin', 'Pause Déduite']
-    for col in cols_a_nettoyer:
-        # Remplace les NaN de Pandas par une chaîne vide ""
-        # IMPORTANT : L'écriture Excel va convertir les heures (Timedelta) en float ou en objet Excel Time
-        # Nous faisons donc le remplacement dans la colonne 'Heures Net (Déduites)' APRES to_excel pour la valeur 0,00
-        df_export[col] = df_export[col].fillna("") 
+    # --- NETTOYAGE DES VALEURS 'nan' ---
     
+    # Remplacer les valeurs d'heure par leur format chaîne propre ou vide
+    df_export['Début'] = df_export['Début'].apply(formater_heure_pour_colonne)
+    df_export['Fin'] = df_export['Fin'].apply(formater_heure_pour_colonne)
+    
+    # Remplacer toute chaîne 'nan' qui aurait pu apparaître par une chaîne vide
+    for col in ['Début', 'Fin']:
+        df_export[col] = df_export[col].replace('nan', '', regex=False).fillna("") 
+    
+    # Remplacement des valeurs "École" par une chaîne vide dans les colonnes d'heures
+    df_export['Début'] = df_export['Début'].apply(lambda x: '' if 'ECOLE' in str(x).upper() else x)
+    df_export['Fin'] = df_export['Fin'].apply(lambda x: '' if 'ECOLE' in str(x).upper() else x)
+    
+    # Retirer les 'nan' des colonnes 'Semaine' et 'Jour' (par sécurité)
+    df_export['Semaine'] = df_export['Semaine'].fillna('')
+    df_export['Jour'] = df_export['Jour'].fillna('')
+    # --------------------------------------------------------------------------
+
     output = io.BytesIO()
     
     try:
@@ -519,10 +532,7 @@ def to_excel_buffer_multi(df_initial, employe_selectionne, semaines_a_exporter, 
             workbook = writer.book
             
             # --- DÉFINITION DES FORMATS ---
-            time_format = workbook.add_format({'num_format': 'hh:mm'})
-            duration_format = workbook.add_format({'num_format': '[h]:mm'})
             header_format = workbook.add_format({'bold': True, 'bg_color': '#DDEEFF', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
-            grey_format = workbook.add_format({'bg_color': '#F0F0F0'}) # Format gris pour les jours de repos
             
             worksheet = workbook.add_worksheet('Planning Global')
             writer.sheets['Planning Global'] = worksheet 
@@ -533,37 +543,20 @@ def to_excel_buffer_multi(df_initial, employe_selectionne, semaines_a_exporter, 
             worksheet.write('A3', f"Période: {len(semaines_a_exporter)} semaine(s) de l'année {annee_selectionnee}")
             worksheet.write('A4', f"TOTAL HEURES NETTES sur la période: {total_heures_format}h", workbook.add_format({'bold': True, 'bg_color': '#CCFFCC'}))
             
-            # Écriture du DataFrame (Commence à la ligne 6, headers à la ligne 7)
+            # Écriture des données (Commence à la ligne 7, headers à la ligne 7)
             df_export.to_excel(writer, sheet_name='Planning Global', index=False, startrow=6, header=False)
             
-            # Écriture des en-têtes (à la ligne 6)
+            # Écriture des en-têtes (à la ligne 7)
             for col_num, value in enumerate(df_export.columns.values):
                 worksheet.write(6, col_num, value, header_format)
 
-            # Mise en forme des colonnes
+            # Mise en forme des colonnes (A à D)
             worksheet.set_column('A:A', 10) 
             worksheet.set_column('B:B', 15) 
-            worksheet.set_column('C:D', 12, time_format) 
-            worksheet.set_column('E:E', 15) 
-            worksheet.set_column('F:F', 20, duration_format) 
-
-            # --- MISE EN FORME CONDITIONNELLE (Griser les lignes de Repos) ---
+            worksheet.set_column('C:D', 12) 
             
-            # La colonne 'Heures Net (Déduites)' est la colonne F (Index 5)
-            last_row = len(df_export) + 6 
-            
-            # Application de la règle : Appliquer le format gris à toute la ligne si la colonne F contient 0:00 
-            worksheet.conditional_format(
-                f'A8:F{last_row}', 
-                {
-                    'type': 'cell',
-                    'criteria': '==',
-                    'value': 0, # Vérifie la valeur numérique (0) pour le format durée/float, ce qui inclut les Repos
-                    'format': grey_format
-                }
-            )
-
-            worksheet.write('A15', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
+            # NOTE: La mise en forme conditionnelle (grisage des lignes) a été retirée
+            # car nous avons supprimé la colonne de référence 'Heures Net (Déduites)'.
             
     except ImportError:
           st.error("Erreur d'exportation : Le module 'xlsxwriter' est manquant. Veuillez l'installer (`pip install xlsxwriter`).")
@@ -573,7 +566,7 @@ def to_excel_buffer_multi(df_initial, employe_selectionne, semaines_a_exporter, 
     return output
 
 
-# --- LOGIQUE PRINCIPALE DE L'APPLICATION ---
+# --- LOGIQUE PRINCIPALE DE L'APPLICATION (inchangée) ---
 
 if not st.session_state['authenticated']:
     login()
@@ -592,7 +585,7 @@ else:
             except Exception:
                 st.sidebar.image(logo_path, caption='Logo', use_column_width=True)
         else:
-            st.sidebar.warning(f"Fichier de logo non trouvé : {NOM_DU_LOGO}") 
+            st.sidebar.warning(f"Fichier de logo non trouvé : {NOM_DU_FICHIER}") 
 
         # 4.2 Chargement des données 
         df_initial = charger_donnees(NOM_DU_FICHIER)
@@ -793,7 +786,7 @@ else:
             
             # Bouton de téléchargement MULTI-SEMAINES
             if semaines_selectionnees_brutes:
-                excel_buffer = to_excel_buffer_multi( # <-- APPEL À LA FONCTION MULTI-SEMAINE
+                excel_buffer = to_excel_buffer_multi( # <-- APPEL À LA FONCTION MULTI-SEMAINE MISE À JOUR
                     df_initial, 
                     employe_selectionne, 
                     semaines_selectionnees_brutes,
