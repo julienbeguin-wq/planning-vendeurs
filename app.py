@@ -882,7 +882,7 @@ else:
                 st.rerun()
                 
             st.sidebar.markdown(
-                "📧 **Contact planning :** <a href='mailto:planning.clichy@example.com'>planning.clichy@example.com</a>",
+                "📧 **Contact planning :** <a href='mailto:julien.beguin@gmail.com'>julien.beguin@gmail.com</a>",
                 unsafe_allow_html=True
             )
             st.sidebar.markdown("---") 
