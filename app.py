@@ -419,26 +419,32 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     """Applique une couleur de fond à la ligne en fonction du statut (Repos, École, Anniversaire)."""
     styles = [''] * len(row) 
     
-    jour_str = row[COL_JOUR] 
+    jour_str = row['Jour'] # Utiliser la colonne renommée 'Jour' du df_affichage
+    # Utilisation de la map pour obtenir le statut réel
     statut = statut_map.get(jour_str, "")
     
+    # Trouver la date de la ligne
     try:
+        # On utilise le COL_JOUR brut pour retrouver l'index (LUNDI, MARDI, etc.)
+        jour_brut = [k for k, v in row.items() if v == jour_str][0] if jour_str not in ORDRE_JOURS else jour_str
+        
         jour_index = ORDRE_JOURS.index(jour_str) 
         date_ligne = date_debut_semaine + timedelta(days=jour_index)
     except Exception:
-        return styles
-
-    # Anniversaire 🥳
-    if employe_connecte in ANNIVERSAIRES:
-        mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
-        if date_ligne.month == mois_anniv and date_ligne.day == jour_anniv:
-            return ['background-color: #FFFF99'] * len(row) 
-            
-    # Aujourd'hui 🟢
-    if date_ligne == date.today():
-        return ['background-color: #CCFFCC'] * len(row) 
+        # Si le jour n'est pas dans ORDRE_JOURS, on ne peut pas appliquer le style jour/anniversaire
+        pass
+    else:
+        # Anniversaire 🥳
+        if employe_connecte in ANNIVERSAIRES:
+            mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
+            if date_ligne.month == mois_anniv and date_ligne.day == jour_anniv:
+                return ['background-color: #FFFF99'] * len(row) 
+                
+        # Aujourd'hui 🟢
+        if date_ligne == date.today():
+            return ['background-color: #CCFFCC'] * len(row) 
         
-    # Styles secondaires
+    # Styles secondaires (Repos, École)
     if statut == "Repos":
         return ['background-color: #F0F0F0'] * len(row) 
     
@@ -601,8 +607,9 @@ else:
         liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
         
         if not liste_semaines_brutes:
-            st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}** en {annee_selectionnee}.")
-            st.stop()
+            # st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}** en {annee_selectionnee}.")
+            # st.stop()
+            pass
         
         # Trouver la semaine actuelle pour la sélection par défaut
         semaine_actuelle_num = aujourdhui.isocalendar()[1]
@@ -726,41 +733,41 @@ else:
             df_affichage = df_resultat_affichage[[COL_JOUR, COL_DEBUT, COL_FIN]].copy()
             
             # --- CORRECTION DE LA LOGIQUE DE FORMATAGE DES HEURES POUR L'AFFICHAGE ---
-            def formater_heure_ou_statut_pour_tableau(row, col_name):
-                # Si le statut est Repos ou École, afficher le statut dans la colonne Début
-                if row['Statut'] in ["Repos", "École"]:
-                    return row['Statut'] if col_name == COL_DEBUT else ""
-                
-                # Sinon, formater l'heure
-                val = row[col_name]
+            # La version précédente a été refactorisée pour être plus simple
+            def formater_heure_pour_colonne(val):
+                """Formatte une heure (time/Timestamp/Timedelta) en hh:mm ou retourne une chaîne vide."""
                 if pd.isna(val) or val == "":
                     return ""
-                    
-                # Si c'est un objet Python time ou str (l'heure initiale du Excel)
-                if isinstance(val, (time, str)):
+                
+                # Cas 1: C'est déjà un objet time ou Timestamp (heure d'origine)
+                if isinstance(val, (time, pd.Timestamp)):
+                     # Pour time ou Timestamp, on le convertit directement en chaîne
                      return str(val)
-                # Si c'est un Timedelta (le résultat de la conversion pour le calcul), essayer de formater en hh:mm
+                
+                # Cas 2: C'est un Timedelta (résultat de la conversion dans le DataLoader)
                 if isinstance(val, pd.Timedelta):
                     seconds = val.total_seconds()
                     heures = int(seconds // 3600)
                     minutes = int((seconds % 3600) // 60)
                     return f"{heures:02d}:{minutes:02d}"
                 
-                # Dernière tentative de conversion en str
+                # Cas 3: C'est une autre valeur (str, int, float) - on la retourne en chaîne
                 return str(val)
+
+            df_affichage[COL_DEBUT] = df_resultat_affichage.apply(
+                lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else formater_heure_pour_colonne(row[COL_DEBUT]), axis=1
+            )
+            
+            # La colonne FIN doit être vide si la colonne DEBUT contient un statut (Repos/École)
+            df_affichage[COL_FIN] = df_resultat_affichage.apply(
+                lambda row: "" if row['Statut'] in ["Repos", "École"] else formater_heure_pour_colonne(row[COL_FIN]), axis=1
+            )
 
             # Application des heures nettes (avec déduction de pause)
             df_affichage['Pause Déduite (Net)'] = df_resultat_affichage.apply(
                 lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) and row['Statut'] == "Travail" else "", axis=1
             )
             
-            df_affichage[COL_DEBUT] = df_resultat_affichage.apply(
-                lambda row: formater_heure_ou_statut_pour_tableau(row, COL_DEBUT), axis=1
-            )
-            df_affichage[COL_FIN] = df_resultat_affichage.apply(
-                lambda row: formater_heure_ou_statut_pour_tableau(row, COL_FIN), axis=1
-            )
-
             df_affichage.columns = ['Jour', 'Début / Statut', 'Fin', 'Pause Déduite (Net)'] # Renommer les colonnes pour l'affichage
             
             st.subheader(f"Planning pour **{employe_selectionne.title()}**")
