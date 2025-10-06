@@ -385,7 +385,7 @@ PASSWORDS = {
     "MOUNIA": "clichy2002",
     "ADAM": "clichy1402",
     "HOUDA": "clichy2701",
-    "JULIEN": "clichy1810", 
+    "JULIEN": "1810", 
 }
 USERNAMES = PASSWORDS.keys() # La liste des utilisateurs est déduite du dictionnaire
 
@@ -615,18 +615,38 @@ else:
         
         st.sidebar.header("Détail Semaine") 
         
+        # --- DÉFINITION DE LA SÉLECTION PAR DÉFAUT POUR LE MULTISELECT ---
+        default_selection = []
+        if semaine_defaut_brute:
+            default_selection = [get_dates_for_week(semaine_defaut_brute, annee_selectionnee, format_type='full')]
+
         # Utilisation de multiselect pour permettre l'export multiple
         semaines_selectionnees_formattees = st.sidebar.multiselect(
             'Sélectionnez la ou les semaines', 
             liste_semaines_formatees,
-            default=[get_dates_for_week(semaine_defaut_brute, annee_selectionnee, format_type='full')] if semaine_defaut_brute else []
+            # Le multiselect sélectionnera automatiquement la semaine actuelle si elle est disponible
+            default=default_selection
         )
         
         # Récupération des brutes (utilisée pour l'export)
         semaines_selectionnees_brutes = [semaine_mapping.get(s) for s in semaines_selectionnees_formattees if s in semaine_mapping]
         
+        
+        # --- CONTRÔLE DE L'AFFICHAGE DU CORPS PRINCIPAL ---
+        if not semaines_selectionnees_brutes:
+            st.info("Veuillez sélectionner au moins une semaine dans la barre latérale pour afficher le planning détaillé et le bouton de téléchargement.")
+            
+            # Affichage du total à zéro et arrêt de l'exécution du reste de la page
+            st.sidebar.markdown("### Total d'heures nettes")
+            st.sidebar.markdown(f"**Période sélectionnée (0 sem.):**")
+            st.sidebar.markdown(f"<h2 style='text-align: center; color: #1E90FF; margin-top: -10px;'>0h 00</h2>", unsafe_allow_html=True)
+            st.sidebar.markdown("<p style='text-align: center; font-size: small; margin-top: -15px;'>*Une heure de pause déduite par jour travaillé*</p>", unsafe_allow_html=True)
+            st.sidebar.markdown("---") 
+            st.stop()
+
+
         # Détermination de la semaine à afficher dans le corps principal (la première de la sélection)
-        semaine_pour_affichage_brute = semaines_selectionnees_brutes[0] if semaines_selectionnees_brutes else semaine_defaut_brute
+        semaine_pour_affichage_brute = semaines_selectionnees_brutes[0]
         
         
         # --- CALCUL ET AFFICHAGE DU TOTAL D'HEURES NETTES (SIDEBAR) ---
@@ -649,10 +669,6 @@ else:
 
         with tab_planning:
             
-            if not semaine_pour_affichage_brute:
-                st.info("Sélectionnez au moins une semaine pour afficher le planning.")
-                st.stop()
-                
             # --- CALCUL DU MOIS POUR LE CALENDRIER ---
             mois_selectionne, annee_calendrier = get_dates_for_week(
                 semaine_pour_affichage_brute, 
