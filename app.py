@@ -12,7 +12,7 @@ from collections import defaultdict
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
 st.set_page_config(
-    page_title="🚨Consultation Planning Clichy🚨", 
+    page_title="Consultation Planning Clichy", 
     layout="wide", 
     initial_sidebar_state="expanded", 
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}, 
@@ -118,6 +118,7 @@ def calculer_duree_brute(row):
     
     duree = row['Duree_Fin'] - row['Duree_Debut']
     
+    # Gère les horaires qui passent minuit (ex: 22:00 -> 06:00)
     if duree < pd.Timedelta(0): 
         duree += pd.Timedelta(days=1)
     
@@ -324,13 +325,67 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, output_contai
     output_container.markdown(html_calendar, unsafe_allow_html=True)
     
 
+# --- FONCTION D'AFFICHAGE DE LA NOTICE (MAINTENUE) ---
+
+def afficher_notice():
+    """Affiche la notice d'utilisation dans un conteneur principal."""
+    st.header("Manuel d'Utilisation de l'Application Planning Clichy 📋")
+    st.markdown("---")
+
+    st.subheader("1. Connexion Sécurisée")
+    st.markdown("""
+    * **Identifiant :** Votre prénom (par exemple, JULIEN).
+    * **Mot de Passe :** Votre code personnel.
+    * Le système vous connecte automatiquement à **votre planning personnel** uniquement.
+    """)
+    
+    st.subheader("2. Navigation et Périodes")
+    st.markdown("""
+    La navigation se fait dans la **barre latérale gauche**.
+    
+    * **Période Globale (Année) :** Permet de sélectionner l'année des plannings (si plusieurs années sont disponibles dans le fichier Excel).
+    * **Détail Semaine :** Permet de choisir **une ou plusieurs semaines** pour la consultation (pour l'affichage principal, seule la première semaine sélectionnée est utilisée) et pour le téléchargement.
+    """)
+    
+    st.subheader("3. Consultation du Planning")
+    
+    st.markdown("""
+    Le planning principal affiche vos horaires (Début et Fin) et la **pause déduite**.
+    * **Téléchargement :** Vous pouvez exporter le planning de **toutes les semaines sélectionnées** au format Excel via le bouton **'📥 Télécharger le planning'**.
+    """)
+    
+    st.markdown("---")
+    
+    st.subheader("4. Légende des Couleurs et Calcul des Heures")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("**Tableau Principal et Calendrier**")
+        st.markdown("""
+        * <span style='background-color: #CCFFCC; padding: 2px;'>🟢 Jour en Vert :</span> C'est **Aujourd'hui**.
+        * <span style='background-color: #FFFF99; padding: 2px;'>🟡 Jour en Jaune :</span> Votre **Anniversaire** 🎂.
+        * <span style='background-color: #F0F0F0; padding: 2px;'>⚪ Jour en Gris :</span> Jour de **Repos** (Temps de service nul).
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("**Calcul Net d'Heures**")
+        st.markdown("""
+        * Le **"Total d'heures nettes"** dans la barre latérale calcule la somme des heures de travail de **toutes les semaines sélectionnées**.
+        * **Règle de pause :** Pour chaque jour travaillé, **1 heure de pause** est automatiquement déduite du temps de service si la durée brute du service est supérieure à 1 heure.
+        """)
+    
+    st.markdown("---")
+    st.info("💡 **Conseil :** N'oubliez pas de vous déconnecter en fin de session via le bouton 'Déconnexion' dans la barre latérale.")
+
+
 # --- 3. LOGIQUE D'AUTHENTIFICATION ---
 # Dictionnaire de MAPPING : Identifiant (UPPER) -> Mot de passe
 PASSWORDS = {
     "MOUNIA": "clichy2002",
     "ADAM": "clichy1402",
     "HOUDA": "clichy2701",
-    "JULIEN": "clichy1810", 
+    "JULIEN": "1810", # Mot de passe stocké en dur - A remplacer par secrets.toml dans une version finale
 }
 USERNAMES = PASSWORDS.keys() # La liste des utilisateurs est déduite du dictionnaire
 
@@ -364,7 +419,8 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     """Applique une couleur de fond à la ligne en fonction du statut (Repos, École, Anniversaire)."""
     styles = [''] * len(row) 
     
-    jour_str = row[COL_JOUR] 
+    # Le nom de la colonne JOUR est 'Jour' dans le df d'affichage
+    jour_str = row['Jour'] 
     statut = statut_map.get(jour_str, "")
     
     try:
@@ -392,33 +448,69 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, statut_map):
     
     return styles
     
-# --- FONCTION D'EXPORT ---
-def to_excel_buffer(df, total_heures_format, employe_selectionne, semaine_selectionnee_brute, annee_selectionnee):
-    """Crée un buffer Excel en mémoire pour le téléchargement."""
-    output = io.BytesIO()
+# --- FONCTION D'EXPORT MISE À JOUR (Multi-semaines) ---
+def to_excel_buffer(df_initial, employe_selectionne, semaines_a_exporter, annee_selectionnee):
+    """Crée un buffer Excel en mémoire pour le téléchargement multi-semaines."""
     
-    # 'Pause Déduite' est supprimée de l'export
-    df_export = df[[COL_JOUR, COL_DEBUT, COL_FIN, 'Durée du service']].copy()
-    df_export.columns = ['Jour', 'Début', 'Fin', 'Heures Net (Déduites)']
+    # 1. Filtrer les données pour les semaines sélectionnées
+    df_export_data = df_initial[
+        (df_initial[COL_SEMAINE].isin(semaines_a_exporter)) & 
+        (df_initial[COL_EMPLOYE] == employe_selectionne)
+    ].copy()
+    
+    if df_export_data.empty:
+        # Ne devrait pas arriver si le contrôle est fait en amont
+        return None
+        
+    # 2. Calcul du total global
+    df_export_data, total_heures_format = calculer_heures_travaillees(df_export_data)
+    
+    # 3. Préparer le DataFrame final pour l'export
+    # Ajout de la colonne SEMAINE en première position et tri par SEMAINE puis JOUR
+    # On ajoute la colonne 'Pause Déduite' calculée dans la version précédente.
+    df_export_data['Pause Déduite'] = df_export_data.apply(
+        lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) and row['Statut'] == "Travail" else "", axis=1
+    )
+    
+    df_export = df_export_data[[COL_SEMAINE, COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite', 'Durée du service']].copy()
+    df_export[COL_JOUR] = pd.Categorical(df_export[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
+    df_export = df_export.sort_values(by=[COL_SEMAINE, COL_JOUR])
+    df_export.columns = ['Semaine', 'Jour', 'Début', 'Fin', 'Pause Déduite', 'Heures Net (Déduites)']
+    
+    output = io.BytesIO()
     
     try:
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_export.to_excel(writer, sheet_name='Planning', index=False, startrow=4)
             workbook = writer.book
-            worksheet = writer.sheets['Planning']
             
+            # Formats
             time_format = workbook.add_format({'num_format': 'hh:mm'})
             duration_format = workbook.add_format({'num_format': '[h]:mm'})
+            header_format = workbook.add_format({'bold': True, 'bg_color': '#DDEEFF', 'border': 1})
             
-            worksheet.set_column('B:C', 15, time_format)  
-            worksheet.set_column('D:D', 20, duration_format) 
+            # Écriture dans la feuille 'Planning Global'
+            worksheet = writer.sheets['Planning']
             
-            worksheet.write('A1', f"Planning Hebdomadaire {annee_selectionnee}")
+            # Infos de l'en-tête (Lignes 1 à 4)
+            worksheet.write('A1', "Export Global Planning", workbook.add_format({'bold': True, 'font_size': 14}))
             worksheet.write('A2', f"Employé: {employe_selectionne.title()}")
-            worksheet.write('A3', f"Semaine: {semaine_selectionnee_brute}")
-            worksheet.write('A4', f"Total d'heures nettes: {total_heures_format}h")
+            worksheet.write('A3', f"Période: {len(semaines_a_exporter)} semaine(s) de l'année {annee_selectionnee}")
+            worksheet.write('A4', f"TOTAL HEURES NETTES sur la période: {total_heures_format}h", workbook.add_format({'bold': True, 'bg_color': '#CCFFCC'}))
             
-            worksheet.write('A10', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
+            # Écriture du DataFrame (Commence à la ligne 6)
+            df_export.to_excel(writer, sheet_name='Planning', index=False, startrow=6, header=False)
+            
+            # Écriture des en-têtes (à la ligne 6) et mise en forme des colonnes
+            for col_num, value in enumerate(df_export.columns.values):
+                worksheet.write(6, col_num, value, header_format)
+
+            worksheet.set_column('A:A', 10) # Semaine
+            worksheet.set_column('B:B', 15) # Jour
+            worksheet.set_column('C:D', 12, time_format)  # Début, Fin
+            worksheet.set_column('E:E', 15) # Pause Déduite
+            worksheet.set_column('F:F', 20, duration_format) # Heures Net (Note : C'est la 6ème colonne, index 5)
+            
+            worksheet.write('A15', "Note: Une heure de pause méridienne est déduite chaque jour si la durée brute du service dépasse 1 heure.")
             
     except ImportError:
           st.error("Erreur d'exportation : Le module 'xlsxwriter' est manquant. Veuillez l'installer (`pip install xlsxwriter`) pour activer le téléchargement Excel.")
@@ -459,8 +551,9 @@ else:
         st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         aujourdhui = date.today()
         
-        # Anniversaire (utilise l'info stockée pour Julien)
+        # Anniversaire 
         anniv_message = ""
+        # Personnalisation de l'anniversaire pour l'utilisateur
         if employe_connecte in ANNIVERSAIRES:
             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
             if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
@@ -490,7 +583,6 @@ else:
         if not annees_disponibles:
              annees_disponibles = [date.today().year] 
 
-        # Initialisation par défaut à l'année la plus récente
         annee_defaut = annees_disponibles[0] 
 
         st.sidebar.header("Période Globale")
@@ -511,135 +603,191 @@ else:
         ].drop_duplicates(subset=[COL_SEMAINE])
         
         liste_semaines_brutes = sorted(df_semaines_travaillees[COL_SEMAINE].unique().tolist())
-        semaine_selectionnee_brute = None
         
-        if not liste_semaines_brutes:
-            st.warning(f"**Attention :** Aucune semaine avec un temps de travail positif n'a été trouvée pour **{employe_selectionne}** en {annee_selectionnee}.")
-            st.stop()
         
+        # Trouver la semaine actuelle pour la sélection par défaut
         semaine_actuelle_num = aujourdhui.isocalendar()[1]
         semaine_actuelle_brute = f"S{semaine_actuelle_num:02d}" 
-        
-        try:
-            index_semaine_actuelle = liste_semaines_brutes.index(semaine_actuelle_brute)
-        except ValueError:
-            index_semaine_actuelle = 0
         
         liste_semaines_formatees = [get_dates_for_week(s, annee_selectionnee, format_type='full') for s in liste_semaines_brutes]
         semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
         
         
         st.sidebar.header("Détail Semaine") 
-        semaine_selectionnee_formattee = st.sidebar.selectbox(
-            'Sélectionnez la semaine', 
+        
+        # --- DÉFINITION DE LA SÉLECTION PAR DÉFAUT POUR LE MULTISELECT ---
+        default_selection = []
+        if semaine_actuelle_brute in liste_semaines_brutes:
+            semaine_formattee_defaut = get_dates_for_week(semaine_actuelle_brute, annee_selectionnee, format_type='full')
+            if semaine_formattee_defaut in liste_semaines_formatees:
+                 default_selection = [semaine_formattee_defaut]
+        elif liste_semaines_formatees:
+             default_selection = [liste_semaines_formatees[0]]
+
+        # Utilisation de multiselect et rétention de la sélection via st.session_state
+        # st.multiselect réactivé ici
+        semaines_selectionnees_formattees = st.sidebar.multiselect(
+            'Sélectionnez la ou les semaines', 
             liste_semaines_formatees,
-            index=index_semaine_actuelle 
+            default=st.session_state.get('semaines_selec', default_selection),
+            key='semaines_selec_multiselect'
         )
         
-        semaine_selectionnee_brute = semaine_mapping.get(semaine_selectionnee_formattee)
+        # Mise à jour de la clé de session avec la sélection actuelle
+        st.session_state['semaines_selec'] = semaines_selectionnees_formattees
+
         
-        # --- CALCUL ET AFFICHAGE DU TOTAL D'HEURES NETTES ---
+        # Récupération des brutes (utilisée pour l'export)
+        semaines_selectionnees_brutes = [semaine_mapping.get(s) for s in semaines_selectionnees_formattees if s in semaine_mapping]
         
-        # Calcul du total d'heures pour la semaine sélectionnée
-        df_filtre = df_employe_annee[df_employe_annee[COL_SEMAINE] == semaine_selectionnee_brute].copy()
-        df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
+        
+        # --- CONTRÔLE DE L'AFFICHAGE DU CORPS PRINCIPAL ---
+        if not semaines_selectionnees_brutes:
+            # Si aucune semaine n'est sélectionnée, on affiche l'avertissement et le total à zéro
+            st.info("Veuillez sélectionner au moins une semaine dans la barre latérale pour afficher le planning détaillé et le bouton de téléchargement.")
+            
+            st.sidebar.markdown("### Total d'heures nettes")
+            st.sidebar.markdown(f"**Période sélectionnée (0 sem.):**")
+            st.sidebar.markdown(f"<h2 style='text-align: center; color: #1E90FF; margin-top: -10px;'>0h 00</h2>", unsafe_allow_html=True)
+            st.sidebar.markdown("<p style='text-align: center; font-size: small; margin-top: -15px;'>*Une heure de pause déduite par jour travaillé*</p>", unsafe_allow_html=True)
+            st.sidebar.markdown("---") 
+            
+            tab_planning, tab_notice = st.tabs(["📅 Mon Planning", "ℹ️ Notice d'Utilisation"])
+            with tab_notice: afficher_notice()
+            
+            st.stop()
+
+
+        # Détermination de la semaine à afficher dans le corps principal (la première de la sélection)
+        semaine_pour_affichage_brute = semaines_selectionnees_brutes[0]
+        
+        
+        # --- CALCUL ET AFFICHAGE DU TOTAL D'HEURES NETTES (SIDEBAR) ---
+        # Le calcul du total utilise TOUTES les semaines sélectionnées
+        df_filtre_total = df_employe_annee[df_employe_annee[COL_SEMAINE].isin(semaines_selectionnees_brutes)].copy()
+        df_temp, total_heures_format_global = calculer_heures_travaillees(df_filtre_total)
         
         st.sidebar.markdown("### Total d'heures nettes")
-        st.sidebar.markdown(f"**Semaine {semaine_selectionnee_brute} ({annee_selectionnee}):**")
-        # Utilisation de style CSS pour une grande police
-        st.sidebar.markdown(f"<h2 style='text-align: center; color: #1E90FF; margin-top: -10px;'>{total_heures_format}h</h2>", unsafe_allow_html=True)
+        st.sidebar.markdown(f"**Période sélectionnée ({len(semaines_selectionnees_brutes)} sem.):**")
+        st.sidebar.markdown(f"<h2 style='text-align: center; color: #1E90FF; margin-top: -10px;'>{total_heures_format_global}h</h2>", unsafe_allow_html=True)
         st.sidebar.markdown("<p style='text-align: center; font-size: small; margin-top: -15px;'>*Une heure de pause déduite par jour travaillé*</p>", unsafe_allow_html=True)
-        
         st.sidebar.markdown("---") # Séparateur final
+        
+        
+        # --- GESTION PAR ONGLETS ---
+        tab_planning, tab_notice = st.tabs(["📅 Mon Planning", "ℹ️ Notice d'Utilisation"])
 
-        
-        # --- CALCUL DU MOIS POUR LE CALENDRIER ---
-        mois_selectionne, annee_calendrier = get_dates_for_week(
-            semaine_selectionnee_brute, 
-            annee_selectionnee, 
-            format_type='month'
-        )
-        
-        # 4.3 AFFICHAGE DU CALENDRIER (DANS LE CORPS PRINCIPAL)
-        afficher_calendrier(
-            df_employe_filtre, 
-            mois_selectionne, 
-            annee_calendrier, 
-            employe_connecte, 
-            st 
-        )
-        
-        st.markdown("---")
-        
+        with tab_notice:
+            afficher_notice()
 
-        # 4.4 Affichage du planning principal (reste dans le corps principal)
-        if employe_selectionne and semaine_selectionnee_brute:
+        with tab_planning:
             
-            date_debut_semaine = get_dates_for_week(semaine_selectionnee_brute, annee_selectionnee, format_type='start_date')
-            dates_pour_affichage = get_dates_for_week(semaine_selectionnee_brute, annee_selectionnee, format_type='only_dates')
-            st.markdown(f"<h3 style='text-align: center;'>{dates_pour_affichage}</h3>", unsafe_allow_html=True)
-            st.markdown("---")
-            
-            df_filtre[COL_JOUR] = pd.Categorical(df_filtre[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
-            df_filtre = df_filtre.sort_values(by=[COL_JOUR])
-            
-            # Recalcul des résultats (pour s'assurer que df_resultat est bien la dernière version triée)
-            df_resultat, total_heures_format = calculer_heures_travaillees(df_filtre)
-            
-            
-            # Ajoute la colonne de Pause Déduite (non affichée)
-            df_resultat['Pause Déduite'] = df_resultat.apply(
-                lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
+            # --- CALCUL DU MOIS POUR LE CALENDRIER ---
+            mois_selectionne, annee_calendrier = get_dates_for_week(
+                semaine_pour_affichage_brute, 
+                annee_selectionnee, 
+                format_type='month'
             )
             
-            # Affichage des avertissements (si horaires inversés ou multiples entrées)
-            avertissements = verifier_donnees(df_resultat)
+            # 4.3 AFFICHAGE DU CALENDRIER
+            afficher_calendrier(
+                df_employe_filtre, 
+                mois_selectionne, 
+                annee_calendrier, 
+                employe_connecte, 
+                st 
+            )
+            
+            st.markdown("---") # SÉPARATEUR AJOUTÉ APRÈS LE CALENDRIER
+
+            # 4.4 Affichage du planning principal (détail de la première semaine sélectionnée)
+            
+            date_debut_semaine = get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date')
+            dates_pour_affichage = get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='only_dates')
+            st.markdown(f"<h3 style='text-align: center;'>Semaine détaillée : {dates_pour_affichage}</h3>", unsafe_allow_html=True)
+            st.markdown("---")
+            
+            # Filtrer pour le tableau d'affichage (une seule semaine)
+            df_filtre_affichage = df_employe_annee[df_employe_annee[COL_SEMAINE] == semaine_pour_affichage_brute].copy()
+            df_filtre_affichage[COL_JOUR] = pd.Categorical(df_filtre_affichage[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
+            df_filtre_affichage = df_filtre_affichage.sort_values(by=[COL_JOUR])
+            
+            df_resultat_affichage, total_heures_semaine = calculer_heures_travaillees(df_filtre_affichage)
+            
+            
+            # Affichage des avertissements 
+            avertissements = verifier_donnees(df_resultat_affichage)
             if avertissements:
                 for alerte in avertissements:
                     st.warning(alerte)
             st.markdown("---")
             
+            # Préparation du DataFrame pour l'affichage
+            statut_map = df_resultat_affichage.set_index(COL_JOUR)['Statut'].to_dict()
 
-            statut_map = df_resultat.set_index(COL_JOUR)['Statut'].to_dict()
+            def formater_heure_pour_colonne(val):
+                """Formatte une heure (time/Timestamp/Timedelta) en hh:mm ou retourne une chaîne vide."""
+                if pd.isna(val) or val == "":
+                    return ""
+                
+                if isinstance(val, (time, pd.Timestamp)):
+                     return str(val).split('.')[-1].split(' ')[-1] # Nettoyage de l'objet heure
+                
+                if isinstance(val, pd.Timedelta):
+                    seconds = val.total_seconds()
+                    heures = int(seconds // 3600)
+                    minutes = int((seconds % 3600) // 60)
+                    return f"{heures:02d}:{minutes:02d}"
+                
+                return str(val)
 
-            # Remplacement pour l'affichage du tableau
-            df_resultat[COL_DEBUT] = df_resultat.apply(
-                lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else row[COL_DEBUT], axis=1
+            df_affichage = df_resultat_affichage.copy() # On copie pour travailler dessus
+            
+            df_affichage[COL_DEBUT] = df_resultat_affichage.apply(
+                lambda row: row['Statut'] if row['Statut'] in ["Repos", "École"] else formater_heure_pour_colonne(row[COL_DEBUT]), axis=1
             )
-            df_resultat[COL_FIN] = df_resultat.apply(
-                lambda row: "" if row['Statut'] in ["Repos", "École"] else row[COL_FIN], axis=1
+            
+            # La colonne FIN doit être vide si la colonne DEBUT contient un statut (Repos/École)
+            df_affichage[COL_FIN] = df_resultat_affichage.apply(
+                lambda row: "" if row['Statut'] in ["Repos", "École"] else formater_heure_pour_colonne(row[COL_FIN]), axis=1
             )
 
+            # Application des heures nettes (avec déduction de pause)
+            df_affichage['Pause Déduite'] = df_resultat_affichage.apply(
+                lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) and row['Statut'] == "Travail" else "", axis=1
+            )
+            
+            # Sélection finale des colonnes pour l'affichage (AVEC PAUSE DÉDUITE)
+            df_affichage_final = df_affichage[[COL_JOUR, COL_DEBUT, COL_FIN, 'Pause Déduite']].copy()
+            df_affichage_final.columns = ['Jour', 'Début / Statut', 'Fin', 'Pause Déduite (Net)'] # Renommer les colonnes pour l'affichage
+            
             st.subheader(f"Planning pour **{employe_selectionne.title()}**")
             
+            st.markdown(f"**Total d'heures nettes calculées pour cette semaine : {total_heures_semaine}h**")
             st.markdown("**Une heure de pause méridienne est déduite chaque jour travaillé.**")
             
-            # Bouton de téléchargement
-            excel_buffer = to_excel_buffer(
-                df_resultat, 
-                total_heures_format, 
-                employe_selectionne, 
-                semaine_selectionnee_brute,
-                annee_selectionnee
-            )
-            
-            if excel_buffer:
-                st.download_button(
-                    label="📥 Télécharger le planning (Excel)",
-                    data=excel_buffer,
-                    file_name=f"Planning_{employe_selectionne.title()}_{semaine_selectionnee_brute}_{annee_selectionnee}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    help="Télécharge le planning hebdomadaire dans un fichier Excel (.xlsx)."
+            # Bouton de téléchargement MULTI-SEMAINE
+            if semaines_selectionnees_brutes:
+                excel_buffer = to_excel_buffer(
+                    df_initial, 
+                    employe_selectionne, 
+                    semaines_selectionnees_brutes,
+                    annee_selectionnee
                 )
+                
+                if excel_buffer:
+                    st.download_button(
+                        label=f"📥 Télécharger les {len(semaines_selectionnees_brutes)} semaines (Excel)",
+                        data=excel_buffer,
+                        file_name=f"Planning_Global_{employe_selectionne.title()}_{annee_selectionnee}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="Télécharge toutes les semaines sélectionnées dans un fichier Excel (.xlsx)."
+                    )
 
-            st.markdown("---")
+                st.markdown("---")
             
-            # --- AFFICHAGE FINAL ---
-            
-            # Colonnes à afficher dans le DataFrame Streamlit
-            df_affichage = df_resultat[[COL_JOUR, COL_DEBUT, COL_FIN]].copy() 
-
-            styled_df = df_affichage.style.apply(
+            # --- AFFICHAGE FINAL DU DATAFRAME ---
+            styled_df = df_affichage_final.style.apply(
                 appliquer_style,
                 axis=1,
                 date_debut_semaine=date_debut_semaine,
@@ -651,16 +799,18 @@ else:
                 styled_df, 
                 use_container_width=True,
                 column_config={
-                    COL_JOUR: st.column_config.Column("Jour", width="large"),
-                    COL_DEBUT: st.column_config.Column("Début / Statut"), 
-                    COL_FIN: st.column_config.Column("Fin"),
+                    'Jour': st.column_config.Column("Jour", width="large"),
+                    'Début / Statut': st.column_config.Column("Début / Statut"), 
+                    'Fin': st.column_config.Column("Fin"),
+                    'Pause Déduite (Net)': st.column_config.Column("Pause Déduite (Net)"), # Ajout de la colonne ici
                 },
                 hide_index=True
             )
             
             st.markdown("""
-            """)
+            <br>
+            """, unsafe_allow_html=True)
             
     except Exception as e:
-        # st.error(f"Une erreur fatale s'est produite : {e}") # Réactivez ceci pour le débogage si besoin
+        # st.error(f"Une erreur fatale s'est produite : {e}") 
         pass
