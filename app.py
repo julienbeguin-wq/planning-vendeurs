@@ -7,8 +7,20 @@ import calendar
 import io
 import re
 from collections import defaultdict
+import locale
 
 # --- 1. CONFIGURATION ET CONSTANTES ---
+
+# Définir la locale pour les noms de mois en français
+# Cela est important pour l'affichage correct des noms de mois dans le sélecteur
+try:
+    locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_TIME, 'fra')
+    except locale.Error:
+        # Fallback si la locale française n'est pas installée
+        pass 
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
 st.set_page_config(
@@ -108,6 +120,9 @@ def get_dates_for_week(week_str, year, format_type='full'):
               return date_debut
         elif format_type == 'month':
               return (date_debut.month, date_debut.year)
+        elif format_type == 'month_name':
+              # Retourne le nom du mois en toutes lettres
+              return date_debut.strftime('%B').title()
         else: # only_dates
             return f"Semaine {week_str} ({year}) : du {date_debut_str} au {date_fin_str}"
             
@@ -303,14 +318,19 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, employe_affic
     # 3. Générer le calendrier HTML
     cal = calendar.Calendar(firstweekday=calendar.MONDAY)
     output_container.header("Vue Mensuelle")
-    html_calendar = f"<h4>{calendar.month_name[mois].title()} {annee}</h4>"
+    
+    # Utilisation du nom du mois localisé
+    nom_du_mois = date(annee, mois, 1).strftime('%B').title()
+    
+    html_calendar = f"<h4>{nom_du_mois} {annee}</h4>"
     
     # Correction pour forcer l'affichage des 7 colonnes
     html_calendar += "<table style='width: 100%; font-size: 14px; text-align: center; border-collapse: collapse; table-layout: fixed;'>"
     html_calendar += "<thead><tr>"
     
-    # Forcer la largeur des en-têtes
-    for day_name in ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]:
+    # Forcer la largeur des en-têtes (noms de jours localisés)
+    jours_semaine = [date(2000, 1, day).strftime('%a').title() for day in range(3, 10)] # Lun, Mar, Mer...
+    for day_name in jours_semaine:
         html_calendar += f"<th style='width: 14.28%;'>{day_name}</th>"
     html_calendar += "</tr></thead><tbody>"
 
@@ -389,7 +409,7 @@ def afficher_notice(is_admin_user):
     La navigation se fait dans la **barre latérale gauche**.
     
     * **Période Globale (Année) :** Permet de sélectionner l'année des plannings.
-    * **Sélection des Semaines :** Cochez **une ou plusieurs semaines** via les cases à cocher. **L'affichage principal utilise la première semaine cochée.**
+    * **Sélection des Semaines :** Utilisez le sélecteur de **Mois** pour filtrer l'affichage, puis **cochez une ou plusieurs semaines** via les cases à cocher. **L'affichage principal utilise la première semaine cochée.**
     """)
     
     st.subheader("3. Consultation et Export du Planning")
@@ -435,7 +455,7 @@ PASSWORDS = {
     "ADAM": "clichy1402",
     "HOUDA": "clichy2701",
     "JULIEN": "clichy1810",
-    "ADMIN": "clichyadmin", # <<< MOT DE PASSE ADMIN MIS À JOUR
+    "ADMIN": "clichyadmin", # <<< MOT DE PASSE ADMIN
 }
 USERNAMES = PASSWORDS.keys() 
 
@@ -449,6 +469,10 @@ if 'username' not in st.session_state:
     st.session_state['username'] = None
 if 'semaines_selec' not in st.session_state:
     st.session_state['semaines_selec'] = []
+# Nouvelle variable de session pour le mois sélectionné
+if 'mois_selec_name' not in st.session_state:
+    st.session_state['mois_selec_name'] = None
+
 
 def login():
     """Fonction de gestion de la connexion."""
@@ -711,10 +735,11 @@ else:
                 st.session_state['authenticated'] = False
                 st.session_state['username'] = None
                 st.session_state['semaines_selec'] = [] 
+                st.session_state['mois_selec_name'] = None 
                 st.rerun()
                 
             st.sidebar.markdown(
-                "📧 **Contact planning :** <a href='mailto:planning.clichy@example.com'>planning.clichy@example.com</a>",
+                "📧 **Contact planning :** <a href='mailto:julien.beguin@gmail.com'>julien.beguin@gmail.com</a>",
                 unsafe_allow_html=True
             )
             st.sidebar.markdown("---") 
@@ -724,38 +749,114 @@ else:
         semaine_actuelle_num = aujourdhui.isocalendar()[1]
         semaine_actuelle_brute = f"S{semaine_actuelle_num:02d}"
         
-        liste_semaines_formatees = [get_dates_for_week(s, annee_selectionnee, format_type='full') for s in liste_semaines_brutes]
-        semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
+        # --- NOUVEAU: CALCULE DU MOIS POUR CHAQUE SEMAINE ---
+        semaines_avec_mois = []
+        for s in liste_semaines_brutes:
+              # Récupère le nom du mois et le numéro du mois
+              mois_nom = get_dates_for_week(s, annee_selectionnee, format_type='month_name')
+              mois_num = get_dates_for_week(s, annee_selectionnee, format_type='month')[0]
+              semaines_avec_mois.append({
+                  'semaine_brute': s,
+                  'mois_nom': mois_nom,
+                  'mois_num': mois_num,
+                  'semaine_formatee': get_dates_for_week(s, annee_selectionnee, format_type='full')
+              })
+
+        # Trier la liste par numéro de mois pour l'affichage du selectbox
+        semaines_avec_mois.sort(key=lambda x: x['mois_num'])
         
+        # Mapping pour les cases à cocher
+        liste_semaines_formatees_toutes = [s['semaine_formatee'] for s in semaines_avec_mois]
+        semaine_mapping = {s['semaine_formatee']: s['semaine_brute'] for s in semaines_avec_mois}
+        
+        # Liste des options du selectbox Mois
+        options_mois = sorted(list(set([(s['mois_num'], s['mois_nom']) for s in semaines_avec_mois])), key=lambda x: x[0])
+        options_mois_noms = [nom for num, nom in options_mois]
+
         # --- LOGIQUE DE SÉLECTION MOBILE-FRIENDLY (CASES À COCHER) ---
         st.sidebar.header("Sélection des Semaines")
-        st.sidebar.caption("Cochez les semaines à afficher / exporter :")
         
+        # 1. SÉLECTEUR DE MOIS
+        if not options_mois_noms:
+              mois_selectionne_nom = None
+        else:
+              # Déterminer le mois par défaut
+              if not st.session_state.get('mois_selec_name'):
+                    # Si aucune sélection, essaie de se positionner sur le mois actuel
+                    mois_actuel_nom = aujourdhui.strftime('%B').title()
+                    if mois_actuel_nom in options_mois_noms:
+                          default_month_index = options_mois_noms.index(mois_actuel_nom)
+                    else:
+                          # Sinon, prend le premier mois disponible
+                          default_month_index = 0
+                          
+                    st.session_state['mois_selec_name'] = options_mois_noms[default_month_index]
+
+
+              mois_selectionne_nom = st.sidebar.selectbox(
+                  'Filtre par Mois :',
+                  options_mois_noms,
+                  index=options_mois_noms.index(st.session_state['mois_selec_name']),
+                  key='mois_select_box'
+              )
+              # Mise à jour de l'état de session si l'utilisateur change de mois
+              if st.session_state['mois_select_box'] != st.session_state['mois_selec_name']:
+                    st.session_state['mois_selec_name'] = st.session_state['mois_select_box']
+        
+        st.sidebar.markdown("---")
+        
+        
+        # 2. FILTRAGE DES SEMAINES PAR MOIS SÉLECTIONNÉ
+        
+        if mois_selectionne_nom:
+              semaines_du_mois = [
+                  s['semaine_formatee'] for s in semaines_avec_mois 
+                  if s['mois_nom'] == mois_selectionne_nom
+              ]
+        else:
+              semaines_du_mois = [] # Aucune semaine si aucun mois n'est disponible
+              
+        st.sidebar.caption("Cochez les semaines pour l'affichage / l'export :")
+
         default_selection = []
+        semaine_formattee_defaut = None
         if semaine_actuelle_brute in liste_semaines_brutes:
             semaine_formattee_defaut = get_dates_for_week(semaine_actuelle_brute, annee_selectionnee, format_type='full')
-            if semaine_formattee_defaut in liste_semaines_formatees:
+            if semaine_formattee_defaut in semaines_du_mois:
                   default_selection = [semaine_formattee_defaut]
-        elif liste_semaines_formatees:
-              default_selection = [liste_semaines_formatees[0]]
+        elif semaines_du_mois:
+              default_selection = [semaines_du_mois[0]]
 
 
         # Nouvelles cases à cocher au lieu du multiselect
         nouvelles_semaines_selectionnees_formattees = []
         
         # Utiliser l'état de session comme base pour l'initialisation des cases
-        semaines_selectionnees_actuelles = st.session_state.get('semaines_selec', default_selection)
+        semaines_selectionnees_actuelles = st.session_state.get('semaines_selec', [])
         
-        for s_formatee in liste_semaines_formatees:
-            is_checked = s_formatee in semaines_selectionnees_actuelles
+        
+        if semaines_du_mois:
+            # S'assurer que les semaines du mois actuel sont sélectionnées si c'est la première sélection
+            if not semaines_selectionnees_actuelles and default_selection:
+                semaines_selectionnees_actuelles = default_selection
             
-            # Utilisation d'un key unique pour chaque checkbox
-            if st.sidebar.checkbox(s_formatee, value=is_checked, key=f'chk_semaine_{semaine_mapping.get(s_formatee)}'):
-                nouvelles_semaines_selectionnees_formattees.append(s_formatee)
-
-        semaines_selectionnees_formattees = nouvelles_semaines_selectionnees_formattees
+            # --- BOUCLE D'AFFICHAGE DES CASES À COCHER FILTRÉES ---
+            for s_formatee in semaines_du_mois:
+                is_checked = s_formatee in semaines_selectionnees_actuelles
+                
+                # Utilisation d'un key unique pour chaque checkbox
+                if st.sidebar.checkbox(s_formatee, value=is_checked, key=f'chk_semaine_{semaine_mapping.get(s_formatee)}'):
+                    nouvelles_semaines_selectionnees_formattees.append(s_formatee)
+        else:
+            st.sidebar.info("Aucune semaine disponible pour ce mois.")
+            
+        
+        # MAJ de l'état de session, en s'assurant de garder les semaines cochées des autres mois
+        semaines_hors_mois = [s for s in semaines_selectionnees_actuelles if s not in semaines_du_mois]
+        semaines_selectionnees_formattees = nouvelles_semaines_selectionnees_formattees + semaines_hors_mois
         st.session_state['semaines_selec'] = semaines_selectionnees_formattees
         
+        # Récupération des semaines brutes pour le filtre et l'export
         semaines_selectionnees_brutes = [semaine_mapping.get(s) for s in semaines_selectionnees_formattees if s in semaine_mapping]
         # --- FIN LOGIQUE SÉLECTION MOBILE-FRIENDLY ---
         
@@ -777,6 +878,7 @@ else:
                 st.session_state['authenticated'] = False
                 st.session_state['username'] = None
                 st.session_state['semaines_selec'] = [] 
+                st.session_state['mois_selec_name'] = None 
                 st.rerun()
                 
             st.sidebar.markdown(
@@ -821,7 +923,7 @@ else:
                 file_name=f"Planning_{file_prefix}_{annee_selectionnee}_Global.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
-            st.sidebar.caption("L'export n'inclut que les colonnes : Semaine, Jour, Début, Fin.")
+            st.sidebar.caption(f"Export de {len(semaines_selectionnees_brutes)} semaine(s) sélectionnée(s).")
         else:
             st.sidebar.warning("Aucune donnée de planning à exporter pour la sélection.")
             
@@ -834,6 +936,7 @@ else:
             st.session_state['authenticated'] = False
             st.session_state['username'] = None
             st.session_state['semaines_selec'] = [] 
+            st.session_state['mois_selec_name'] = None 
             st.rerun()
             
         st.sidebar.markdown(
@@ -870,6 +973,7 @@ else:
             col_calendar = st.container()
             
             with col_calendar:
+                # Si la semaine d'affichage principale est le mois en cours (ou si pas de sélection spécifique)
                 afficher_calendrier(
                     df_calendrier, # <-- Dataframe avec toutes les semaines sélectionnées
                     mois_selectionne, 
