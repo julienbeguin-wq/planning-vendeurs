@@ -1010,19 +1010,6 @@ else:
                     employe_selectionne, 
                     st.container()
                 )
-            
-            # --- 2. VÉRIFICATIONS DU PLANNING ---
-            st.subheader("Vérifications du Planning")
-            avertissements = verifier_donnees(df_filtre_affichage_unique)
-
-            if avertissements:
-                for warning in avertissements:
-                    st.warning(warning)
-            else:
-                st.success("✅ Aucune anomalie majeure détectée pour cette semaine.")
-            
-            st.markdown("---")
-            st.header(f"Semaine détaillée : {semaine_pour_affichage_brute} ({annee_selectionnee}): du {get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date').strftime('%d/%m/%y')} au {(get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date') + timedelta(days=6)).strftime('%d/%m/%y')}")
 
             # --- 3. TABLEAU DÉTAILLÉ DE LA SEMAINE (OU VUE GLOBALE) ---
             
