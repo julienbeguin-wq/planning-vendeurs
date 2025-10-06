@@ -659,7 +659,6 @@ else:
             )
             
             st.markdown("""
-            **Légende :**
             """)
             
     except Exception as e:
