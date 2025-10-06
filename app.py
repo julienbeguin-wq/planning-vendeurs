@@ -745,8 +745,9 @@ else:
                 format_type='month'
             )
             
-            # --- 1. CALENDRIER MENSUEL (Vue Globale) ---
-            col_calendar, col_warnings = st.columns([0.6, 0.4])
+            ### DÉBUT MODIFICATION : BLOC VÉRIFICATION MASQUÉ
+            # La colonne pour les avertissements est supprimée, la Vue Mensuelle prend toute la largeur.
+            col_calendar = st.container() # On utilise un simple container pour l'affichage plein écran du calendrier.
             
             with col_calendar:
                 afficher_calendrier(
@@ -757,18 +758,20 @@ else:
                     st.container()
                 )
             
-            # --- 2. AVERTISSEMENTS (Erreurs de Saisie) ---
-            with col_warnings:
-                st.header("Vérifications du Planning")
+            # Suppression du bloc 'Vérifications du Planning'
+            # # --- 2. AVERTISSEMENTS (Erreurs de Saisie) ---
+            # with col_warnings:
+            #     st.header("Vérifications du Planning")
                 
-                avertissements = verifier_donnees(df_filtre_affichage_unique)
+            #     avertissements = verifier_donnees(df_filtre_affichage_unique)
                 
-                if not avertissements:
-                    st.success("✅ Aucune anomalie majeure détectée pour cette semaine.")
-                else:
-                    st.warning("⚠️ **Anomalies de saisie détectées :**")
-                    for warning in avertissements:
-                        st.markdown(f"- {warning}", unsafe_allow_html=True)
+            #     if not avertissements:
+            #         st.success("✅ Aucune anomalie majeure détectée pour cette semaine.")
+            #     else:
+            #         st.warning("⚠️ **Anomalies de saisie détectées :**")
+            #         for warning in avertissements:
+            #             st.markdown(f"- {warning}", unsafe_allow_html=True)
+            ### FIN MODIFICATION : BLOC VÉRIFICATION MASQUÉ
 
 
             st.markdown("---")
