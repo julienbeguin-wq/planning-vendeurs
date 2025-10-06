@@ -72,7 +72,6 @@ def formater_heure_pour_colonne(val):
         minutes = int((seconds % 3600) // 60)
         return f"{heures:02d}:{minutes:02d}"
     
-    # --- MODIFICATION: Supprimer 'nan' ---
     val_str = str(val)
     if val_str.lower() in ('nan', '<nat>'):
         return ""
@@ -247,7 +246,6 @@ def charger_donnees(fichier):
 
 def verifier_donnees(df_semaine):
     """Vérifie la logique des données de planning et retourne une liste d'avertissements."""
-    # Cette fonction n'est plus appelée dans l'affichage, mais conservée si besoin
     avertissements = []
     df_travail = df_semaine[df_semaine['Durée du service'] > pd.Timedelta(0)].copy()
     
@@ -277,7 +275,6 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, employe_affic
     statut_par_jour = defaultdict(lambda: 'Repos')
     
     # Si 'Tous' est sélectionné, le calendrier ne peut pas afficher les statuts individuels de manière simple.
-    # On utilise donc un mode simple si plusieurs employés sont concernés.
     df_mois = df_employe[
         (df_employe['ANNEE'] == annee) &
         (df_employe['DATE'].dt.month == mois)
@@ -326,8 +323,8 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, employe_affic
         if mois == mois_anniv:
             anniversaire_trouve = True
             
-    # Note: L'information de votre anniversaire (18 octobre) est utilisée ici si vous êtes JULIEN
-    if employe_affiche == "JULIEN" and mois == 10 and jour_anniv == 18:
+    # Utilisation de l'information de l'utilisateur
+    if employe_affiche == "JULIEN" and mois == 10 and 18:
         anniversaire_trouve = True
         jour_anniv = 18
 
@@ -354,7 +351,6 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, employe_affic
             if anniversaire_trouve and day_num == jour_anniv:
                 day_style = styles['Anniversaire']
             
-            # Note: Si Admin voit tout, les couleurs Jour/Repos sont désactivées pour éviter la confusion
             html_calendar += f"<td style='{day_style}; border: 1px solid #DDDDDD; height: 35px;'>{day_num}</td>"
         html_calendar += "</tr>"
     
@@ -363,7 +359,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, employe_affic
     output_container.markdown(html_calendar, unsafe_allow_html=True)
     
 
-# --- FONCTION D'AFFICHAGE DE LA NOTICE (MISE À JOUR) ---
+# --- FONCTION D'AFFICHAGE DE LA NOTICE ---
 
 def afficher_notice(is_admin_user):
     """Affiche la notice d'utilisation, adaptée si l'utilisateur est Admin."""
@@ -388,7 +384,6 @@ def afficher_notice(is_admin_user):
     """)
     
     st.subheader("2. Navigation et Périodes")
-    # ... (Reste de la notice) ...
     st.markdown("""
     La navigation se fait dans la **barre latérale gauche**.
     
@@ -419,7 +414,6 @@ def afficher_notice(is_admin_user):
         * <span style='background-color: #F0F0F0; padding: 2px;'>⚪ Jour en Gris :</span> Jour de **Repos** (Temps de service nul).
 
         """, unsafe_allow_html=True)
-        # Note: Les couleurs Jour/Repos sont désactivées en mode Admin "Tous les employés".
 
     with col2:
         st.markdown("**Calcul Net d'Heures**")
@@ -440,7 +434,7 @@ PASSWORDS = {
     "JULIEN": "clichy1810",
     "ADMIN": "clichyadmin", # <<< MOT DE PASSE ADMIN MIS À JOUR
 }
-USERNAMES = PASSWORDS.keys() # La liste des utilisateurs est déduite du dictionnaire
+USERNAMES = PASSWORDS.keys() 
 
 # Constante Admin
 ADMIN_USER = "ADMIN"
@@ -479,17 +473,23 @@ def appliquer_style(row, date_debut_semaine, employe_connecte, employe_affiche, 
     
     is_admin_view_all = (employe_affiche == "Tous les employés")
 
-    # Si Admin voit tout, on ne met que les styles Aujourd'hui et Anniversaire
     if is_admin_view_all:
-        return styles # Aucune couleur appliquée pour la vue globale
+        return styles
 
     
     # --- VUE INDIVIDUELLE ---
-    jour_str = row['Jour']
+    # La colonne 'Jour' est le nom après renommage (voir ligne ~790)
+    try:
+        jour_str = row['Jour'] 
+    except KeyError:
+        # En cas d'erreur inattendue (ne devrait plus arriver avec la correction)
+        return styles 
+        
     statut = statut_map.get(jour_str, "")
     
     try:
-        jour_index = ORDRE_JOURS.index(jour_str)
+        # Trouver l'index dans la liste globale des jours (LUNDI, MARDI...)
+        jour_index = ORDRE_JOURS.index(jour_str) 
         date_ligne = date_debut_semaine + timedelta(days=jour_index)
     except Exception:
         return styles
@@ -531,7 +531,6 @@ def to_excel_buffer_multi(df_initial, employe_selectionne, semaines_a_exporter, 
         return None
         
     # 2. Calcul du total global (uniquement pour l'info d'en-tête)
-    # Le calcul du total est toujours basé sur les données filtrées
     df_export_data, total_heures_format = calculer_heures_travaillees(df_export_data)
     
     # 3. Préparer le DataFrame final pour l'export (LIMITÉ AUX COLONNES)
@@ -622,17 +621,18 @@ else:
         st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         aujourdhui = date.today()
         
-        # Gestion de l'Anniversaire (uniquement pour les employés non-admin)
+        # Gestion de l'Anniversaire 
         anniv_message = ""
-        if not is_admin and employe_connecte in ANNIVERSAIRES:
+        # Utilisateur JULIEN (avec information sauvegardée)
+        if employe_connecte == "JULIEN" and aujourdhui.month == 10 and aujourdhui.day == 18:
+             st.sidebar.balloons()
+             anniv_message = "Joyeux Anniversaire ! 🎂"
+        # Autres utilisateurs
+        elif not is_admin and employe_connecte in ANNIVERSAIRES:
             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
             if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
                 st.sidebar.balloons()
                 anniv_message = "Joyeux Anniversaire ! 🎂"
-        
-        if employe_connecte == "JULIEN" and aujourdhui.month == 10 and aujourdhui.day == 18:
-             st.sidebar.balloons()
-             anniv_message = "Joyeux Anniversaire ! 🎂"
         
         if anniv_message:
             st.sidebar.success(anniv_message)
@@ -802,7 +802,7 @@ else:
         tab_planning, tab_notice = st.tabs(["📅 Mon Planning", "ℹ️ Notice d'Utilisation"])
 
         with tab_notice:
-            afficher_notice(is_admin) # On passe la variable Admin
+            afficher_notice(is_admin) 
 
         with tab_planning:
             
@@ -818,11 +818,11 @@ else:
             
             with col_calendar:
                 afficher_calendrier(
-                    df_filtre_affichage_unique, # On passe le DF déjà filtré sur l'employé/la sélection
+                    df_filtre_affichage_unique, 
                     mois_selectionne, 
                     annee_calendrier, 
                     employe_connecte, 
-                    employe_selectionne, # Pour la logique d'affichage Admin/Individuel
+                    employe_selectionne, 
                     st.container()
                 )
             
@@ -838,21 +838,26 @@ else:
             df_display['Fin'] = df_display[COL_FIN].apply(formater_heure_pour_colonne)
             
             # Création du DataFrame final pour Streamlit
+            # On utilise COL_JOUR pour l'indexation initiale du DataFrame
             column_order = [COL_EMPLOYE, COL_SEMAINE, COL_JOUR, 'Début', 'Fin'] if employe_selectionne == "Tous les employés" else [COL_JOUR, 'Début', 'Fin']
-            df_final = df_display.rename(columns={COL_JOUR: 'Jour'})[column_order]
+            df_final = df_display[column_order].copy()
             
             # Tri
-            df_final['Jour'] = pd.Categorical(df_final['Jour'], categories=ORDRE_JOURS, ordered=True)
-            sort_cols = ([COL_EMPLOYE] if employe_selectionne == "Tous les employés" else []) + ['Jour']
+            df_final[COL_JOUR] = pd.Categorical(df_final[COL_JOUR], categories=ORDRE_JOURS, ordered=True)
+            sort_cols = ([COL_EMPLOYE] if employe_selectionne == "Tous les employés" else []) + [COL_JOUR]
             df_final = df_final.sort_values(sort_cols).reset_index(drop=True)
             
-            # Renommage des colonnes pour l'affichage
-            df_final.columns = ['Employé', 'Semaine', 'Jour', 'Début', 'Fin'] if employe_selectionne == "Tous les employés" else ['Jour', 'Début', 'Fin']
+            # Renommage des colonnes pour l'affichage (APRÈS l'indexation et le tri)
+            df_final = df_final.rename(columns={COL_JOUR: 'Jour'})
+            
+            column_names = ['Employé', 'Semaine', 'Jour', 'Début', 'Fin'] if employe_selectionne == "Tous les employés" else ['Jour', 'Début', 'Fin']
+            df_final.columns = column_names
 
             # Application du style (couleur de fond par ligne)
             date_debut_semaine = get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date')
             
             # Le statut map n'est utile qu'en vue individuelle
+            # Elle utilise COL_JOUR car elle est basée sur df_display (non renommé)
             statut_map = df_display.set_index(COL_JOUR)['Statut'].to_dict() if employe_selectionne != "Tous les employés" else {}
 
             styled_df = df_final.style.apply(
