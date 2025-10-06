@@ -546,7 +546,11 @@ else:
         
         # Anniversaire 
         anniv_message = ""
-        if employe_connecte in ANNIVERSAIRES:
+        # On peut personnaliser l'anniversaire pour l'utilisateur Julien
+        if employe_connecte == "JULIEN" and aujourdhui.month == 10 and aujourdhui.day == 18:
+            st.sidebar.balloons() 
+            anniv_message = "Joyeux Anniversaire ! 🎂"
+        elif employe_connecte in ANNIVERSAIRES:
             mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
             if aujourdhui.month == mois_anniv and aujourdhui.day == jour_anniv:
                  st.sidebar.balloons() 
@@ -615,28 +619,37 @@ else:
         
         st.sidebar.header("Détail Semaine") 
         
-        # --- DÉFINITION DE LA SÉLECTION PAR DÉFAUT POUR LE MULTISELECT ---
+        # --- DÉFINITION DE LA SÉLECTION PAR DÉFAUT POUR LE MULTISELECT (CORRIGÉ) ---
         default_selection = []
+        # Si une semaine par défaut (actuelle ou la première) est trouvée, on l'ajoute à la sélection par défaut.
         if semaine_defaut_brute:
-            default_selection = [get_dates_for_week(semaine_defaut_brute, annee_selectionnee, format_type='full')]
+            semaine_formattee_defaut = get_dates_for_week(semaine_defaut_brute, annee_selectionnee, format_type='full')
+            if semaine_formattee_defaut in liste_semaines_formatees:
+                 default_selection = [semaine_formattee_defaut]
 
         # Utilisation de multiselect pour permettre l'export multiple
         semaines_selectionnees_formattees = st.sidebar.multiselect(
             'Sélectionnez la ou les semaines', 
             liste_semaines_formatees,
-            # Le multiselect sélectionnera automatiquement la semaine actuelle si elle est disponible
-            default=default_selection
+            # Utilisation de la clé de session pour forcer la rétention de la sélection après rerun,
+            # sinon on utilise la sélection par défaut.
+            default=st.session_state.get('semaines_selec', default_selection),
+            key='semaines_selec_multiselect'
         )
+        
+        # Mise à jour de la clé de session avec la sélection actuelle
+        st.session_state['semaines_selec'] = semaines_selectionnees_formattees
+
         
         # Récupération des brutes (utilisée pour l'export)
         semaines_selectionnees_brutes = [semaine_mapping.get(s) for s in semaines_selectionnees_formattees if s in semaine_mapping]
         
         
-        # --- CONTRÔLE DE L'AFFICHAGE DU CORPS PRINCIPAL ---
+        # --- CONTRÔLE DE L'AFFICHAGE DU CORPS PRINCIPAL (CORRIGÉ) ---
         if not semaines_selectionnees_brutes:
+            # Si aucune semaine n'est sélectionnée, on affiche l'avertissement et le total à zéro
             st.info("Veuillez sélectionner au moins une semaine dans la barre latérale pour afficher le planning détaillé et le bouton de téléchargement.")
             
-            # Affichage du total à zéro et arrêt de l'exécution du reste de la page
             st.sidebar.markdown("### Total d'heures nettes")
             st.sidebar.markdown(f"**Période sélectionnée (0 sem.):**")
             st.sidebar.markdown(f"<h2 style='text-align: center; color: #1E90FF; margin-top: -10px;'>0h 00</h2>", unsafe_allow_html=True)
