@@ -33,7 +33,7 @@ st.set_page_config(
 
 NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png"
-# NOUVELLE ADRESSE DE CONTACT
+# ADRESSE DE CONTACT
 CONTACT_EMAIL = "julien.beguin@gmail.com"
 
 # LISTE DES ANNIVERSAIRES 🎂
@@ -163,10 +163,24 @@ def calculer_duree_brute(row):
     return duree
 
 def calculer_duree_service(row):
-    """Calcule la durée de travail nette pour une ligne (avec 1h de pause si > 1h)."""
+    """
+    Calcule la durée de travail nette pour une ligne avec déduction de pause,
+    sauf pour MOUNIA ou si le jour est DIMANCHE.
+    """
     duree = row['Duree_Brute']
+    employe = row[COL_EMPLOYE].upper()
+    jour = row[COL_JOUR].upper()
+    
+    # 1. Règle pour MOUNIA : pas de pause (même si service > 1h)
+    if employe == "MOUNIA":
+        pass # Aucune déduction
         
-    if duree > pd.Timedelta(hours=1):
+    # 2. Règle pour DIMANCHE : pas de pause (pour les autres employés)
+    elif jour == "DIMANCHE":
+        pass # Aucune déduction le dimanche
+    
+    # 3. Règle Générale (Autres jours et autres employés) : 1h de pause si service > 1h
+    elif duree > pd.Timedelta(hours=1):
         duree -= pd.Timedelta(hours=1)
         
     if duree < pd.Timedelta(0): return pd.Timedelta(0)
@@ -240,6 +254,7 @@ def charger_donnees(fichier):
     df['Duree_Fin'] = df[COL_FIN].apply(convertir_heure_en_timedelta)
     
     df['Duree_Brute'] = df.apply(calculer_duree_brute, axis=1)
+    # APPEL À LA FONCTION CORRIGÉE
     df['Durée du service'] = df.apply(calculer_duree_service, axis=1) # Colonne nécessaire pour le calendrier
     
     # Ajout du statut par ligne pour le calendrier (Travail/Repos/École)
@@ -443,7 +458,10 @@ def afficher_notice(is_admin_user):
         st.markdown("**Calcul Net d'Heures**")
         st.markdown("""
         * Le **"Total d'heures nettes"** dans la barre latérale calcule la somme des heures de travail de **la première semaine sélectionnée**.
-        * **Règle de pause :** Pour chaque jour travaillé, **1 heure de pause** est automatiquement déduite du temps de service si la durée brute du service est supérieure à 1 heure.
+        * **Règle de pause (Mise à jour) :**
+            * **MOUNIA** : Aucune pause n'est déduite.
+            * **DIMANCHE** : Aucune pause n'est déduite pour tous les employés.
+            * **Autres jours/employés :** 1 heure de pause est déduite si la durée brute du service est supérieure à 1 heure.
         """)
     
     st.markdown("---")
@@ -1000,6 +1018,8 @@ else:
             if avertissements:
                 for warning in avertissements:
                     st.warning(warning)
+            else:
+                st.success("✅ Aucune anomalie majeure détectée pour cette semaine.")
             
             st.markdown("---")
             st.header(f"Semaine détaillée : {semaine_pour_affichage_brute} ({annee_selectionnee}): du {get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date').strftime('%d/%m/%y')} au {(get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date') + timedelta(days=6)).strftime('%d/%m/%y')}")
@@ -1009,10 +1029,19 @@ else:
             # Pour le tableau détaillé, on utilise toujours df_filtre_affichage_unique (la première semaine)
             df_display = df_filtre_affichage_unique.copy()
             
-            # Ajout des colonnes de calcul pour l'affichage détaillé
-            df_display['Pause Déduite'] = df_display.apply(
-                lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
-            )
+            # Calcul du champ 'Pause Déduite' pour l'affichage (si 1h déduite, afficher "1h 00", sinon "")
+            def calculer_pause_affiche(row):
+                if row[COL_EMPLOYE].upper() == "MOUNIA" or row[COL_JOUR].upper() == "DIMANCHE":
+                    return "" # Pas de pause déduite pour MOUNIA ou le DIMANCHE
+                
+                # Règle générale : si la durée brute est > 1h, une pause a été déduite
+                if row['Duree_Brute'] > pd.Timedelta(hours=1):
+                    # On vérifie qu'on n'est pas tombé sur la règle de Mounia ou Dimanche par erreur
+                    return "1h 00"
+                return ""
+            
+            df_display['Pause Déduite'] = df_display.apply(calculer_pause_affiche, axis=1)
+
             df_display['Heures Net (Déduites)'] = df_display['Durée du service'].apply(formater_duree).str.replace('min', '')
             
             # Formatage des heures de début et fin
