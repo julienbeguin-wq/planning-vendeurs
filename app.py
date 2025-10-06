@@ -389,13 +389,13 @@ def afficher_notice(is_admin_user):
     La navigation se fait dans la **barre latérale gauche**.
     
     * **Période Globale (Année) :** Permet de sélectionner l'année des plannings.
-    * **Sélection des Semaines :** Permet de choisir **une ou plusieurs semaines** via la sélection multiple. **L'affichage principal utilise la première semaine sélectionnée.**
+    * **Sélection des Semaines :** Cochez **une ou plusieurs semaines** via les cases à cocher. **L'affichage principal utilise la première semaine cochée.**
     """)
     
     st.subheader("3. Consultation et Export du Planning")
     
     st.markdown("""
-    * Le planning principal affiche uniquement vos horaires de **Début** et de **Fin**. Les cellules sans heure sont **vides**.
+    * Le planning principal affiche uniquement vos horaires de **Début** et de **Fin** ainsi que le calcul de la pause.
     * **Téléchargement :** Vous pouvez exporter le planning de **toutes les semaines sélectionnées** au format Excel via le bouton **'📥 Télécharger le planning'**.
     * **⚠️ Contenu de l'export Excel :** Le fichier généré ne contient que les colonnes essentielles : **Semaine, Jour, Début et Fin**. Les colonnes de calcul (`Pause Déduite` et `Heures Net`) sont intentionnellement **omis** de l'export final.
     """)
@@ -727,8 +727,9 @@ else:
         liste_semaines_formatees = [get_dates_for_week(s, annee_selectionnee, format_type='full') for s in liste_semaines_brutes]
         semaine_mapping = dict(zip(liste_semaines_formatees, liste_semaines_brutes))
         
-        # --- LOGIQUE MULTISELECT POUR L'EXPORT ---
+        # --- LOGIQUE DE SÉLECTION MOBILE-FRIENDLY (CASES À COCHER) ---
         st.sidebar.header("Sélection des Semaines")
+        st.sidebar.caption("Cochez les semaines à afficher / exporter :")
         
         default_selection = []
         if semaine_actuelle_brute in liste_semaines_brutes:
@@ -738,15 +739,25 @@ else:
         elif liste_semaines_formatees:
               default_selection = [liste_semaines_formatees[0]]
 
-        semaines_selectionnees_formattees = st.sidebar.multiselect(
-            'Sélectionnez pour l\'affichage / l\'export',
-            liste_semaines_formatees,
-            default=st.session_state.get('semaines_selec', default_selection),
-            key='semaines_selec_multiselect'
-        )
+
+        # Nouvelles cases à cocher au lieu du multiselect
+        nouvelles_semaines_selectionnees_formattees = []
         
+        # Utiliser l'état de session comme base pour l'initialisation des cases
+        semaines_selectionnees_actuelles = st.session_state.get('semaines_selec', default_selection)
+        
+        for s_formatee in liste_semaines_formatees:
+            is_checked = s_formatee in semaines_selectionnees_actuelles
+            
+            # Utilisation d'un key unique pour chaque checkbox
+            if st.sidebar.checkbox(s_formatee, value=is_checked, key=f'chk_semaine_{semaine_mapping.get(s_formatee)}'):
+                nouvelles_semaines_selectionnees_formattees.append(s_formatee)
+
+        semaines_selectionnees_formattees = nouvelles_semaines_selectionnees_formattees
         st.session_state['semaines_selec'] = semaines_selectionnees_formattees
+        
         semaines_selectionnees_brutes = [semaine_mapping.get(s) for s in semaines_selectionnees_formattees if s in semaine_mapping]
+        # --- FIN LOGIQUE SÉLECTION MOBILE-FRIENDLY ---
         
         
         # DÉTERMINATION DE LA SEMAINE POUR L'AFFICHAGE PRINCIPAL (Première sélection)
@@ -934,6 +945,10 @@ else:
             
             # Affichage du total en bas du tableau
             st.markdown(f"**TOTAL HEURES NETTES pour la semaine ({semaine_pour_affichage_brute}) : {total_heures_format}h**", unsafe_allow_html=True)
+            
+            # Ajout d'une ligne de séparation finale pour la clarté
+            st.markdown("---")
+
 
     except Exception as e:
         # Gestion des erreurs non capturées
