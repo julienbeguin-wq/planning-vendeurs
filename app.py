@@ -275,6 +275,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, employe_affic
     statut_par_jour = defaultdict(lambda: 'Repos')
     
     # Si 'Tous' est sélectionné, le calendrier ne peut pas afficher les statuts individuels de manière simple.
+    # On filtre les données reçues (qui peuvent contenir plusieurs mois) pour n'afficher que le mois en cours.
     df_mois = df_employe[
         (df_employe['ANNEE'] == annee) &
         (df_employe['DATE'].dt.month == mois)
@@ -324,9 +325,8 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, employe_affic
             anniversaire_trouve = True
             
     # Utilisation de l'information de l'utilisateur
-    if employe_affiche == "JULIEN" and mois == 10 and 18:
+    if employe_affiche == "JULIEN" and mois == 10 and jour_anniv == 18:
         anniversaire_trouve = True
-        jour_anniv = 18
 
     for week in cal.monthdays2calendar(annee, mois):
         html_calendar += "<tr>"
@@ -807,18 +807,25 @@ else:
         with tab_planning:
             
             # --- CALCUL DU MOIS POUR LE CALENDRIER ---
+            # Le mois affiché est basé sur la première semaine sélectionnée
             mois_selectionne, annee_calendrier = get_dates_for_week(
                 semaine_pour_affichage_brute,
                 annee_selectionnee,
                 format_type='month'
             )
             
+            # --- Filtrage pour le CALENDRIER (Toutes les semaines sélectionnées) ---
+            # CORRECTION : Utilisation de toutes les semaines sélectionnées pour le calendrier
+            df_calendrier = df_employe_annee[
+                df_employe_annee[COL_SEMAINE].isin(semaines_selectionnees_brutes)
+            ].copy()
+            
             # --- 1. CALENDRIER MENSUEL (Vue Globale) ---
             col_calendar = st.container()
             
             with col_calendar:
                 afficher_calendrier(
-                    df_filtre_affichage_unique, 
+                    df_calendrier, # <-- Dataframe avec toutes les semaines sélectionnées
                     mois_selectionne, 
                     annee_calendrier, 
                     employe_connecte, 
@@ -831,6 +838,7 @@ else:
 
             # --- 2. TABLEAU DÉTAILLÉ DE LA SEMAINE (OU VUE GLOBALE) ---
             
+            # Pour le tableau détaillé, on utilise toujours df_filtre_affichage_unique (la première semaine)
             df_display = df_filtre_affichage_unique.copy()
             
             # Formatage pour l'affichage
