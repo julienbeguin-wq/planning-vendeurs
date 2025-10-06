@@ -33,14 +33,17 @@ st.set_page_config(
 
 NOM_DU_FICHIER = "RePlannings1.2.xlsx"
 NOM_DU_LOGO = "mon_logo.png"
+# NOUVELLE ADRESSE DE CONTACT
+CONTACT_EMAIL = "julien.beguin@gmail.com"
 
 # LISTE DES ANNIVERSAIRES 🎂
 # Format : "NOM VENDEUR EN MAJUSCULE" : (Mois, Jour)
 ANNIVERSAIRES = {
     "MOUNIA": (2, 20),
     "ADAM": (2, 14),
+    # Utilisation de l'information sauvegardée
+    "JULIEN": (10, 18), 
     "HOUDA": (1, 27),
-    "JULIEN": (10, 18),
 }
 
 # Noms des colonnes (headers) - DOIVENT CORRESPONDRE
@@ -445,8 +448,12 @@ def afficher_notice(is_admin_user):
     
     st.markdown("---")
     
-    # Message de déconnexion pour la notice
-    st.info("💡 **Conseil :** Le bouton 'Déconnexion' se trouve en bas de la barre latérale.")
+    # Message de déconnexion pour la notice avec la NOUVELLE adresse de contact
+    st.info(f"""
+    💡 **Conseil :** Le bouton 'Déconnexion' se trouve en bas de la barre latérale.
+    
+    **Contact planning :** {CONTACT_EMAIL}
+    """)
 
 # --- 3. LOGIQUE D'AUTHENTIFICATION ---
 # Dictionnaire de MAPPING : Identifiant (UPPER) -> Mot de passe
@@ -738,8 +745,9 @@ else:
                 st.session_state['mois_selec_name'] = None 
                 st.rerun()
                 
+            # ADRESSE EMAIL MISE À JOUR
             st.sidebar.markdown(
-                "📧 **Contact planning :** <a href='mailto:julien.beguin@gmail.com'>julien.beguin@gmail.com</a>",
+                f"📧 **Contact planning :** <a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a>",
                 unsafe_allow_html=True
             )
             st.sidebar.markdown("---") 
@@ -881,8 +889,9 @@ else:
                 st.session_state['mois_selec_name'] = None 
                 st.rerun()
                 
+            # ADRESSE EMAIL MISE À JOUR
             st.sidebar.markdown(
-                "📧 **Contact planning :** <a href='mailto:julien.beguin@gmail.com'>julien.beguin@gmail.com</a>",
+                f"📧 **Contact planning :** <a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a>",
                 unsafe_allow_html=True
             )
             st.sidebar.markdown("---") 
@@ -939,8 +948,9 @@ else:
             st.session_state['mois_selec_name'] = None 
             st.rerun()
             
+        # ADRESSE EMAIL MISE À JOUR
         st.sidebar.markdown(
-            "📧 **Contact planning :** <a href='mailto:planning.clichy@example.com'>planning.clichy@example.com</a>",
+            f"📧 **Contact planning :** <a href='mailto:{CONTACT_EMAIL}'>{CONTACT_EMAIL}</a>",
             unsafe_allow_html=True
         )
         st.sidebar.markdown("---") 
@@ -990,8 +1000,6 @@ else:
             if avertissements:
                 for warning in avertissements:
                     st.warning(warning)
-            else:
-                st.success("✅ Aucune anomalie majeure détectée pour cette semaine.")
             
             st.markdown("---")
             st.header(f"Semaine détaillée : {semaine_pour_affichage_brute} ({annee_selectionnee}): du {get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date').strftime('%d/%m/%y')} au {(get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date') + timedelta(days=6)).strftime('%d/%m/%y')}")
