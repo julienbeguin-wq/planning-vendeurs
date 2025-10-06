@@ -12,7 +12,7 @@ from collections import defaultdict
 
 # TITRE DE L'ONGLET DU NAVIGATEUR ET RÉGLAGES DE LA PAGE
 st.set_page_config(
-    page_title="Consultation Planning Clichy", 
+    page_title="🚨Consultation Planning Clichy🚨", 
     layout="wide", 
     initial_sidebar_state="expanded", 
     menu_items={'Get Help': None, 'Report a bug': None, 'About': None}, 
@@ -330,7 +330,7 @@ PASSWORDS = {
     "MOUNIA": "clichy2002",
     "ADAM": "clichy1402",
     "HOUDA": "clichy2701",
-    "JULIEN": "1810", 
+    "JULIEN": "clichy1810", 
 }
 USERNAMES = PASSWORDS.keys() # La liste des utilisateurs est déduite du dictionnaire
 
