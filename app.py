@@ -314,11 +314,17 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, output_contai
     aujourdhui = date.today()
     
     # Utilisation des informations mémorisées (date d'anniversaire)
-    anniversaire_julien = False
+    anniversaire_trouve = False
+    mois_anniv, jour_anniv = None, None
     if employe_connecte in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_connecte]
         if mois == mois_anniv:
-            anniversaire_julien = True
+            anniversaire_trouve = True
+            
+    # Note: L'information de votre anniversaire (18 octobre) est utilisée ici si vous êtes JULIEN
+    if employe_connecte == "JULIEN" and mois == 10 and 18:
+        anniversaire_trouve = True
+        jour_anniv = 18
 
     for week in cal.monthdays2calendar(annee, mois):
         html_calendar += "<tr>"
@@ -335,7 +341,7 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, output_contai
             if day_date == aujourdhui:
                 day_style += styles['Aujourdhui']
                 
-            if anniversaire_julien and day_num == jour_anniv:
+            if anniversaire_trouve and day_num == jour_anniv:
                 day_style = styles['Anniversaire']
             
             html_calendar += f"<td style='{day_style}; border: 1px solid #DDDDDD; height: 35px;'>{day_num}</td>"
@@ -371,7 +377,7 @@ def afficher_notice():
     st.subheader("3. Consultation et Export du Planning")
     
     st.markdown("""
-    * Le planning principal affiche vos horaires (Début et Fin) et la **pause déduite calculée** pour la première semaine sélectionnée. Les cellules sans heure sont désormais **vides**.
+    * Le planning principal affiche uniquement vos horaires de **Début** et de **Fin**. Les colonnes de calcul (Pause, Heures Net) ne sont pas affichées pour simplifier la vue. Les cellules sans heure sont **vides**.
     * **Téléchargement :** Vous pouvez exporter le planning de **toutes les semaines sélectionnées** au format Excel via le bouton **'📥 Télécharger le planning'**.
     * **⚠️ Contenu de l'export Excel :** Le fichier généré ne contient que les colonnes essentielles : **Semaine, Jour, Début et Fin**. Les colonnes de calcul (`Pause Déduite` et `Heures Net`) sont intentionnellement **omis** de l'export final.
     """)
@@ -772,22 +778,20 @@ else:
             
             # Calcul des colonnes d'affichage
             df_display = df_filtre_affichage_unique.copy()
-            df_display['Pause Déduite'] = df_display['Duree_Brute'] - df_display['Durée du service']
-            df_display['Heures Net (Déduites)'] = df_display['Durée du service']
+            # Les colonnes de calcul (Pause et Heures Net) ne sont plus calculées ni ajoutées au df_display.
             
             # Formatage pour l'affichage (Conversion des Timedelta en chaînes lisibles)
             df_display['Début'] = df_display[COL_DEBUT].apply(formater_heure_pour_colonne)
             df_display['Fin'] = df_display[COL_FIN].apply(formater_heure_pour_colonne)
-            df_display['Pause Déduite'] = df_display['Pause Déduite'].apply(formater_duree).str.replace(" 00", "").str.replace("min", "")
-            df_display['Heures Net (Déduites)'] = df_display['Heures Net (Déduites)'].apply(formater_duree).str.replace(" 00", "").str.replace("min", "")
+            # Les colonnes de Pause et Heures Net ne sont plus formatées ici.
             
             # Création du DataFrame final pour Streamlit
             df_final = df_display.rename(columns={COL_JOUR: 'Jour'})[[
                 'Jour',
                 'Début',
                 'Fin',
-                'Pause Déduite',
-                'Heures Net (Déduites)'
+                # 'Pause Déduite', # Colonnes retirées de l'affichage final
+                # 'Heures Net (Déduites)' # Colonnes retirées de l'affichage final
             ]]
             
             # Tri par jour de la semaine
