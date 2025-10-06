@@ -319,12 +319,13 @@ def afficher_calendrier(df_employe, mois, annee, employe_connecte, employe_affic
     # Gestion de l'Anniversaire (uniquement en vue individuelle)
     anniversaire_trouve = False
     mois_anniv, jour_anniv = None, None
+    
     if employe_affiche != "Tous les employés" and employe_affiche in ANNIVERSAIRES:
         mois_anniv, jour_anniv = ANNIVERSAIRES[employe_affiche]
         if mois == mois_anniv:
             anniversaire_trouve = True
             
-    # Utilisation de l'information de l'utilisateur
+    # Utilisation de l'information de l'utilisateur (JULIEN - 18/10)
     if employe_affiche == "JULIEN" and mois == 10 and jour_anniv == 18:
         anniversaire_trouve = True
 
@@ -423,7 +424,9 @@ def afficher_notice(is_admin_user):
         """)
     
     st.markdown("---")
-    st.info("💡 **Conseil :** N'oubliez pas de vous déconnecter en fin de session via le bouton 'Déconnexion' dans la barre latérale.")
+    
+    # Message de déconnexion pour la notice
+    st.info("💡 **Conseil :** Le bouton 'Déconnexion' se trouve en bas de la barre latérale.")
 
 # --- 3. LOGIQUE D'AUTHENTIFICATION ---
 # Dictionnaire de MAPPING : Identifiant (UPPER) -> Mot de passe
@@ -617,11 +620,11 @@ else:
         df_initial = charger_donnees(NOM_DU_FICHIER)
         liste_employes = sorted(df_initial[COL_EMPLOYE].unique().tolist())
         
-        # --- Barre latérale : Informations utilisateur et déconnexion ---
+        # --- Barre latérale : Informations utilisateur ---
         st.sidebar.markdown(f"**👋 Bienvenue, {employe_connecte.title()}**")
         aujourdhui = date.today()
         
-        # Gestion de l'Anniversaire 
+        # Gestion de l'Anniversaire
         anniv_message = ""
         # Utilisateur JULIEN (avec information sauvegardée)
         if employe_connecte == "JULIEN" and aujourdhui.month == 10 and aujourdhui.day == 18:
@@ -636,19 +639,6 @@ else:
         
         if anniv_message:
             st.sidebar.success(anniv_message)
-
-        if st.sidebar.button("Déconnexion"):
-            st.session_state['authenticated'] = False
-            st.session_state['username'] = None
-            st.session_state['semaines_selec'] = [] 
-            st.rerun()
-        
-        # --- LIEN MAILTO ---
-        st.sidebar.markdown("---")
-        st.sidebar.markdown(
-            "📧 **Contact planning :** <a href='mailto:julien.beguin@gmail.com'>julien.beguin@gmail.com</a>",
-            unsafe_allow_html=True
-        )
             
         st.sidebar.markdown("---")
         
@@ -713,7 +703,22 @@ else:
             st.sidebar.markdown(f"**Semaine à afficher :**")
             st.sidebar.markdown(f"<h2 style='text-align: center; color: #1E90FF; margin-top: -10px;'>0h 00</h2>", unsafe_allow_html=True)
             st.sidebar.markdown("<p style='text-align: center; font-size: small; margin-top: -15px;'>*Aucune donnée*</p>", unsafe_allow_html=True)
+            
+            # Ajout du bloc de gestion de session même en cas d'absence de données (pour la déconnexion)
             st.sidebar.markdown("---")
+            st.sidebar.markdown("### Gestion de la Session")
+            if st.sidebar.button("Déconnexion"):
+                st.session_state['authenticated'] = False
+                st.session_state['username'] = None
+                st.session_state['semaines_selec'] = [] 
+                st.rerun()
+                
+            st.sidebar.markdown(
+                "📧 **Contact planning :** <a href='mailto:planning.clichy@example.com'>planning.clichy@example.com</a>",
+                unsafe_allow_html=True
+            )
+            st.sidebar.markdown("---") 
+
             st.stop()
             
         semaine_actuelle_num = aujourdhui.isocalendar()[1]
@@ -753,7 +758,21 @@ else:
             st.sidebar.markdown(f"**Semaine à afficher :**")
             st.sidebar.markdown(f"<h2 style='text-align: center; color: #1E90FF; margin-top: -10px;'>0h 00</h2>", unsafe_allow_html=True)
             st.sidebar.markdown("<p style='text-align: center; font-size: small; margin-top: -15px;'>*Sélectionnez une semaine*</p>", unsafe_allow_html=True)
+            
+            # Ajout du bloc de gestion de session même en cas d'absence de sélection
             st.sidebar.markdown("---")
+            st.sidebar.markdown("### Gestion de la Session")
+            if st.sidebar.button("Déconnexion"):
+                st.session_state['authenticated'] = False
+                st.session_state['username'] = None
+                st.session_state['semaines_selec'] = [] 
+                st.rerun()
+                
+            st.sidebar.markdown(
+                "📧 **Contact planning :** <a href='mailto:planning.clichy@example.com'>planning.clichy@example.com</a>",
+                unsafe_allow_html=True
+            )
+            st.sidebar.markdown("---") 
             st.stop()
             
         semaine_pour_affichage_brute = semaines_selectionnees_brutes[0] 
@@ -796,6 +815,22 @@ else:
             st.sidebar.warning("Aucune donnée de planning à exporter pour la sélection.")
             
         st.sidebar.markdown("---") 
+        
+        # --- NOUVEAU BLOC : Déconnexion et Contact (en bas de la sidebar) ---
+        st.sidebar.markdown("### Gestion de la Session")
+        
+        if st.sidebar.button("Déconnexion"):
+            st.session_state['authenticated'] = False
+            st.session_state['username'] = None
+            st.session_state['semaines_selec'] = [] 
+            st.rerun()
+            
+        st.sidebar.markdown(
+            "📧 **Contact planning :** <a href='mailto:planning.clichy@example.com'>planning.clichy@example.com</a>",
+            unsafe_allow_html=True
+        )
+        st.sidebar.markdown("---") 
+
 
         
         # --- GESTION PAR ONGLETS ---
@@ -833,21 +868,36 @@ else:
                     st.container()
                 )
             
-            st.markdown("---")
-            st.header(f"Détail : {employe_selectionne.title()} | Semaine {get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='only_dates')}")
+            # --- 2. VÉRIFICATIONS DU PLANNING ---
+            st.subheader("Vérifications du Planning")
+            avertissements = verifier_donnees(df_filtre_affichage_unique)
 
-            # --- 2. TABLEAU DÉTAILLÉ DE LA SEMAINE (OU VUE GLOBALE) ---
+            if avertissements:
+                for warning in avertissements:
+                    st.warning(warning)
+            else:
+                st.success("✅ Aucune anomalie majeure détectée pour cette semaine.")
+            
+            st.markdown("---")
+            st.header(f"Semaine détaillée : {semaine_pour_affichage_brute} ({annee_selectionnee}): du {get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date').strftime('%d/%m/%y')} au {(get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date') + timedelta(days=6)).strftime('%d/%m/%y')}")
+
+            # --- 3. TABLEAU DÉTAILLÉ DE LA SEMAINE (OU VUE GLOBALE) ---
             
             # Pour le tableau détaillé, on utilise toujours df_filtre_affichage_unique (la première semaine)
             df_display = df_filtre_affichage_unique.copy()
             
-            # Formatage pour l'affichage
+            # Ajout des colonnes de calcul pour l'affichage détaillé
+            df_display['Pause Déduite'] = df_display.apply(
+                lambda row: "1h 00" if row['Duree_Brute'] > pd.Timedelta(hours=1) else "", axis=1
+            )
+            df_display['Heures Net (Déduites)'] = df_display['Durée du service'].apply(formater_duree).str.replace('min', '')
+            
+            # Formatage des heures de début et fin
             df_display['Début'] = df_display[COL_DEBUT].apply(formater_heure_pour_colonne)
             df_display['Fin'] = df_display[COL_FIN].apply(formater_heure_pour_colonne)
             
             # Création du DataFrame final pour Streamlit
-            # On utilise COL_JOUR pour l'indexation initiale du DataFrame
-            column_order = [COL_EMPLOYE, COL_SEMAINE, COL_JOUR, 'Début', 'Fin'] if employe_selectionne == "Tous les employés" else [COL_JOUR, 'Début', 'Fin']
+            column_order = [COL_EMPLOYE, COL_SEMAINE, COL_JOUR, 'Début', 'Fin', 'Pause Déduite', 'Heures Net (Déduites)'] if employe_selectionne == "Tous les employés" else [COL_JOUR, 'Début', 'Fin', 'Pause Déduite', 'Heures Net (Déduites)']
             df_final = df_display[column_order].copy()
             
             # Tri
@@ -858,14 +908,13 @@ else:
             # Renommage des colonnes pour l'affichage (APRÈS l'indexation et le tri)
             df_final = df_final.rename(columns={COL_JOUR: 'Jour'})
             
-            column_names = ['Employé', 'Semaine', 'Jour', 'Début', 'Fin'] if employe_selectionne == "Tous les employés" else ['Jour', 'Début', 'Fin']
+            column_names = (['Employé', 'Semaine', 'Jour'] if employe_selectionne == "Tous les employés" else ['Jour']) + ['Début', 'Fin', 'Pause Déduite', 'Heures Net (Déduites)']
             df_final.columns = column_names
 
             # Application du style (couleur de fond par ligne)
             date_debut_semaine = get_dates_for_week(semaine_pour_affichage_brute, annee_selectionnee, format_type='start_date')
             
             # Le statut map n'est utile qu'en vue individuelle
-            # Elle utilise COL_JOUR car elle est basée sur df_display (non renommé)
             statut_map = df_display.set_index(COL_JOUR)['Statut'].to_dict() if employe_selectionne != "Tous les employés" else {}
 
             styled_df = df_final.style.apply(
@@ -882,6 +931,9 @@ else:
                 hide_index=True,
                 use_container_width=True,
             )
+            
+            # Affichage du total en bas du tableau
+            st.markdown(f"**TOTAL HEURES NETTES pour la semaine ({semaine_pour_affichage_brute}) : {total_heures_format}h**", unsafe_allow_html=True)
 
     except Exception as e:
         # Gestion des erreurs non capturées
